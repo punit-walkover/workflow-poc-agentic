@@ -1,13 +1,14 @@
 # Workflows POC (agentic): Functional Documentation
 
-High-level functional documentation for `workflow-poc-agentic`, written from the source code as of 2026-10-13.
-Low-level details (exact SQL, prompt wording, component props) are left to the code; this document explains **what** each
-feature does, **how** the pieces fit together and **where** to look.
+High-level functional documentation for `workflow-poc-agentic`, written from the source code as of **2026-10-14**
+(after migrations `0016_minimal_schema.sql` and `0017_draft_and_published.sql`).
+It explains **what** each feature does, **how** the pieces fit together and **where** to look. Exact SQL, prompt wording
+and component props are left to the code.
 
 > **Conventions.** Paths are relative to the repository root. `⚠ Unverified` marks statements the code alone can't confirm.
-> `⚠ Risk` marks architectural or behavioural risks supported by the code. Status values in the inventory:
-> **Implemented**, **Partial**, **Legacy** (still in the code or schema but no longer reachable through the app),
-> **Dev-only**, **Planned** (described in `docs/*.html` but not in code).
+> `⚠ Risk` marks behaviour or architecture problems the code supports. Inventory status values:
+> **Implemented**, **Partial** (works, but part of it is missing or not wired), **Dev-only**, **Legacy** (left in code or
+> schema, no longer reachable), **Planned** (described in `docs/*.html` or `README.md`, not in code).
 
 ---
 
@@ -23,38 +24,39 @@ feature does, **how** the pieces fit together and **where** to look.
 8. [Feature documentation](#8-feature-documentation)
    - [F1 Workflow management](#f1-workflow-management)
    - [F2 Canvas workflow editor](#f2-canvas-workflow-editor)
-   - [F3 Workflow validation](#f3-workflow-validation)
-   - [F4 Publishing and versioning](#f4-publishing-and-versioning)
-   - [F5 Workflow map compiler](#f5-workflow-map-compiler)
-   - [F6 Actions (tool) catalog](#f6-actions-tool-catalog)
-   - [F7 viaSocket tool builder integration](#f7-viasocket-tool-builder-integration)
-   - [F8 Action execution and idempotency](#f8-action-execution-and-idempotency)
-   - [F9 Conversations and messages](#f9-conversations-and-messages)
-   - [F10 Attachments](#f10-attachments)
-   - [F11 Per-conversation event inbox](#f11-per-conversation-event-inbox)
-   - [F12 Supervisor agent (routing)](#f12-supervisor-agent-routing)
-   - [F13 Workflow agent](#f13-workflow-agent)
-   - [F14 Step engine and `wf_*` tools](#f14-step-engine-and-wf_-tools)
-   - [F15 Input blocks](#f15-input-blocks)
-   - [F16 Conditions (AI and rules)](#f16-conditions-ai-and-rules)
-   - [F17 Loops (repeat limit, ask again)](#f17-loops-repeat-limit-ask-again)
-   - [F18 Save response](#f18-save-response)
-   - [F19 Text bubbles and the verbatim reply check](#f19-text-bubbles-and-the-verbatim-reply-check)
-   - [F20 Approvals](#f20-approvals)
-   - [F21 Timers: reminders, expiry, approval timeout](#f21-timers-reminders-expiry-approval-timeout)
-   - [F22 Run controls (pause, resume, cancel, retry)](#f22-run-controls-pause-resume-cancel-retry)
-   - [F23 Hand-off to a human and workflow switching](#f23-hand-off-to-a-human-and-workflow-switching)
-   - [F24 Stale-reply protection and message merging](#f24-stale-reply-protection-and-message-merging)
-   - [F25 Playground](#f25-playground)
-   - [F26 Run panel and timeline](#f26-run-panel-and-timeline)
-   - [F27 AI usage, cost and call traces](#f27-ai-usage-cost-and-call-traces)
-   - [F28 Embeddable chat widget](#f28-embeddable-chat-widget)
-   - [F29 Model provider configuration](#f29-model-provider-configuration)
-   - [F30 Dev endpoints](#f30-dev-endpoints)
-   - [F31 Database setup and migrations](#f31-database-setup-and-migrations)
-   - [F32 API client and server wake-up handling](#f32-api-client-and-server-wake-up-handling)
-   - [F33 Unit tests](#f33-unit-tests)
-   - [F34 Legacy viaSocket app actions](#f34-legacy-viasocket-app-actions)
+   - [F3 Block text editor and variables](#f3-block-text-editor-and-variables)
+   - [F4 Workflow validation](#f4-workflow-validation)
+   - [F5 Draft and published copy](#f5-draft-and-published-copy)
+   - [F6 Workflow map compiler](#f6-workflow-map-compiler)
+   - [F7 Actions (tool) catalog](#f7-actions-tool-catalog)
+   - [F8 viaSocket tool builder integration](#f8-viasocket-tool-builder-integration)
+   - [F9 Action execution and idempotency](#f9-action-execution-and-idempotency)
+   - [F10 Conversations and messages](#f10-conversations-and-messages)
+   - [F11 Attachments](#f11-attachments)
+   - [F12 Per-conversation event inbox](#f12-per-conversation-event-inbox)
+   - [F13 Supervisor agent](#f13-supervisor-agent)
+   - [F14 Workflow agent](#f14-workflow-agent)
+   - [F15 Step engine and `wf_*` tools](#f15-step-engine-and-wf_-tools)
+   - [F16 Input blocks](#f16-input-blocks)
+   - [F17 Conditions (AI and rules)](#f17-conditions-ai-and-rules)
+   - [F18 Loops (repeat limit, ask again)](#f18-loops-repeat-limit-ask-again)
+   - [F19 Save response](#f19-save-response)
+   - [F20 Text bubbles and the verbatim reply check](#f20-text-bubbles-and-the-verbatim-reply-check)
+   - [F21 Approvals](#f21-approvals)
+   - [F22 Timers: reminder, expiry, approval timeout](#f22-timers-reminder-expiry-approval-timeout)
+   - [F23 Run controls (pause, resume, cancel, retry)](#f23-run-controls-pause-resume-cancel-retry)
+   - [F24 Hand-off, yield and workflow switching](#f24-hand-off-yield-and-workflow-switching)
+   - [F25 Stale-reply protection and message merging](#f25-stale-reply-protection-and-message-merging)
+   - [F26 Playground](#f26-playground)
+   - [F27 Run panel and timeline](#f27-run-panel-and-timeline)
+   - [F28 AI usage, cost and call traces](#f28-ai-usage-cost-and-call-traces)
+   - [F29 Embeddable chat widget](#f29-embeddable-chat-widget)
+   - [F30 Model provider and Mastra setup](#f30-model-provider-and-mastra-setup)
+   - [F31 Dev endpoints](#f31-dev-endpoints)
+   - [F32 Database setup and migrations](#f32-database-setup-and-migrations)
+   - [F33 API client and server wake-up handling](#f33-api-client-and-server-wake-up-handling)
+   - [F34 App shell: navigation, approvals badge, server status](#f34-app-shell-navigation-approvals-badge-server-status)
+   - [F35 Unit tests](#f35-unit-tests)
 9. [API reference (summary)](#9-api-reference-summary)
 10. [Run lifecycle](#10-run-lifecycle)
 11. [Architectural risks, duplication and coupling](#11-architectural-risks-duplication-and-coupling)
@@ -65,79 +67,88 @@ feature does, **how** the pieces fit together and **where** to look.
 ## 1. Project overview
 
 **What it is.** A proof of concept for "Ticket0 workflows": support playbooks drawn on a canvas and carried out in a
-customer chat by AI agents. It started as a copy of a sibling baseline (`../workflows-poc`, a DBOS-runner version) and
-replaces the deterministic runner with agents (`README.md`).
+customer chat by AI agents. It started as a copy of a sibling baseline (`../workflows-poc`, the DBOS + GTWY version) and
+replaces that deterministic runner with agents (`README.md`). Ports and database differ, so both can run side by side.
 
 **Core idea.** Two kinds of [Mastra](https://mastra.ai) agents talk to the customer:
 
 - a **supervisor** reads every customer message and decides who handles it;
-- one **workflow agent per published workflow version** walks the canvas block by block.
+- one **workflow agent per published workflow graph** walks the canvas block by block.
 
-Agents never change run state directly. Every move goes through a `wf_*` tool, which checks it with a **pure step engine**
-(`server/src/engine/engine.ts`, no DB and no AI). The engine stops the agent from skipping steps, taking a wrong branch,
-running an action twice or bypassing an approval.
+Agents never change run state directly. Every move goes through a `wf_*` tool, and each tool checks the move with a
+**pure step engine** (`server/src/engine/engine.ts`: no database, no AI). The engine stops the agent from skipping
+steps, taking a wrong branch, running an action twice or getting past an approval.
 
 **Primary use cases**
 
-| Who | Use case |
-|---|---|
-| Workflow author | Build a workflow on a canvas (AI steps, text bubbles, inputs, conditions, loops), publish it, enable it. |
-| Workflow author | Create tools (actions) in viaSocket's embedded builder; mention them in steps as `@key`. |
-| Teammate | Watch chats in the Playground, read each run's steps, timeline and AI cost, approve or reject actions, pause/resume/cancel/retry runs, write in the chat as "Team". |
-| Customer | Chat in the Playground (as a persona) or through the embeddable widget on another site. |
-| Developer | Drive the `wf_*` tools by hand through `/dev/*` routes, inspect the agent map, probe the model. |
+| Who | Does what | Where |
+|---|---|---|
+| Workflow author | Draws a workflow (AI steps, text bubbles, inputs, conditions, loops), saves a draft, publishes it | `/workflows`, `/workflows/[id]` |
+| Tool author | Builds tools (actions) in viaSocket's embedded builder; sets "Needs approval" | `/actions` |
+| Teammate | Approves or rejects actions and evidence; pauses, resumes, cancels or retries runs; writes in the chat | `/approvals`, `/playground` |
+| Tester | Chats as a demo customer and watches the run, its tool calls, timeline and AI cost | `/playground` |
+| Host product | Embeds the chat with one script tag | `/chatbot`, `web/public/widget.js` |
+| Developer | Calls the `wf_*` tools by hand, inspects the agent map, probes the model | `/dev/*` (`DEV_ENDPOINTS=1`) |
 
-**POC shortcuts stated in `README.md`** (confirmed in code): single tenant (no `org_id`), no authentication, playground
-conversations stand in for tickets, run timeline in Postgres `run_event`, files on local disk, replies sent automatically
-(no draft mode), models called directly with `LLM_*` env vars.
+**POC shortcuts** (stated in `README.md` and visible in code): single tenant (no `org_id`), no authentication,
+playground conversations stand in for tickets, run timeline in Postgres (`run_event`), attachments on local disk,
+replies are sent automatically (no draft mode).
+
+**Tech stack**
+
+| Part | Stack | Port |
+|---|---|---|
+| `server/` | NestJS 12, Mastra 1.75 (`@mastra/core`, `@mastra/memory`, `@mastra/pg`), AI SDK providers, `pg`, axios, zod | 4011 |
+| `web/` | Next.js 16 (App Router), React 19, Tailwind 4, React Flow (`@xyflow/react` 12), TipTap 3, lucide-react | 4010 |
+| Database | PostgreSQL; app tables in `public`, Mastra tables in schema `mastra` | — |
+| External | Model provider (OpenAI, Anthropic or OpenAI-compatible), viaSocket (tool builder embed and flow run URLs) | — |
 
 ---
 
 ## 2. Feature inventory
 
-Every feature found in the code. Each row links to its section; the **Doc** column marks it as documented.
+Every feature found in the code, with its status and whether this document covers it. The coverage check in
+[§12](#12-verification-against-the-repository) cross-checks this list against controllers, routes, tables and tools.
 
-| ID | Feature | Status | Main code | Doc |
+| # | Feature | Status | Main code | Documented |
 |---|---|---|---|---|
-| F1 | Workflow management (list, create, save draft, enable, archive) | Implemented | `server/src/workflows/workflows.service.ts`, `web/src/app/workflows/` | ✅ |
-| F2 | Canvas workflow editor (groups, blocks, arrows, palette, undo/redo, copy/paste, tidy, variables) | Implemented | `web/src/components/canvas/*`, `web/src/lib/graph.ts`, `web/src/components/step-editor.tsx` | ✅ |
-| F3 | Workflow validation | Implemented | `server/src/workflows/graph.ts` | ✅ |
-| F4 | Publishing and versioning | Implemented | `workflows.service.ts#publishWorkflow` | ✅ |
-| F5 | Workflow map compiler (canvas → agent map) | Implemented | `server/src/engine/map.ts` | ✅ |
-| F6 | Actions catalog (list, enable, needs approval, rename, delete) | Implemented | `server/src/actions/actions.controller.ts`, `web/src/app/actions/page.tsx` | ✅ |
-| F7 | viaSocket tool builder integration | Implemented | `web/src/components/viasocket-panel.tsx`, `server/src/integrations/*`, `POST /actions/from-flow` | ✅ |
-| F8 | Action execution with idempotency | Implemented | `server/src/actions/execute.ts` | ✅ |
-| F9 | Conversations and messages (customer, bot, team, system) | Implemented | `server/src/playground/*` | ✅ |
-| F10 | Attachments (image upload, serve) | Implemented | `playground.controller.ts` | ✅ |
-| F11 | Per-conversation event inbox + sweeper | Implemented | `server/src/agents/inbox.ts` | ✅ |
-| F12 | Supervisor agent (start / switch / delegate / hand off / reply) | Implemented | `server/src/agents/agents.ts`, `prompts.ts` | ✅ |
-| F13 | Workflow agent (one per published version) | Implemented | `agents.ts#workflowAgent`, `#workflowTurn` | ✅ |
-| F14 | Step engine and `wf_*` tools | Implemented | `engine/engine.ts`, `agents/wf-tools.ts`, `agents/tools.ts` | ✅ |
-| F15 | Input blocks (text, email, number, phone; retries; answer ahead) | Implemented | `engine.ts#checkAnswer`, `wf-tools.ts#wfSaveInput` | ✅ |
-| F16 | Conditions (AI-judged and rules) | Implemented | `engine.ts#chooseByRules`, `wf-tools.ts#wfChooseCase` | ✅ |
-| F17 | Loops with repeat limit and "ask again" | Implemented | `engine.ts#follow`, `#rerun`; `graph.ts#cycles` | ✅ |
-| F18 | Save response (action output → variables) | Implemented | `engine.ts#saveResponse`, `web/.../save-response.tsx`, `GET /actions/:key/sample` | ✅ |
-| F19 | Text bubbles + verbatim reply check | Implemented | `wf-tools.ts#wfCompleteStep`, `agents.ts#deliver` | ✅ |
-| F20 | Approvals (action approval, evidence review) | Implemented / Partial (evidence attachments) | `runner/tasks.ts`, `runner/runs.controller.ts`, `wf-tools.ts#decideAgentApproval` | ✅ |
-| F21 | Timers: reminder, expiry, approval timeout | Implemented | `inbox.ts#sweep`, `#timerTurn`, `agents.ts#markWaiting` | ✅ |
-| F22 | Run controls: pause, resume, cancel, retry | Implemented | `runs.controller.ts`, `wf-tools.ts#controlAgentRun` | ✅ |
-| F23 | Hand-off to a human, workflow switching, yield | Implemented | `wf-tools.ts#wfHandoff`, `#wfSwitchWorkflow`; `agents.ts` | ✅ |
-| F24 | Stale-reply protection, quick-message merging | Implemented | `inbox.ts#drain`, `agents.ts#newerMessage` | ✅ |
-| F25 | Playground (personas, chat as customer/team) | Implemented | `web/src/app/playground/page.tsx` | ✅ |
-| F26 | Run panel (steps view, timeline, controls) | Implemented | `web/src/components/run-panel.tsx`, `run-timeline.tsx`, `tool-call.tsx` | ✅ |
-| F27 | AI usage, cost and full call traces | Implemented | `agents/usage.ts`, `prices.ts`, `GET /ai-calls/:id`, `web/.../ai-call.tsx` | ✅ |
-| F28 | Embeddable chat widget (loader, iframe, config page, demo host) | Implemented | `web/public/widget.js`, `web/src/app/embed*`, `chatbot/`, `widget.controller.ts` | ✅ |
-| F29 | Model provider configuration (OpenAI, Anthropic, OpenAI-compatible) | Implemented | `server/src/agents/mastra.ts`, `config.ts` | ✅ |
-| F30 | Dev endpoints (`/dev/*`) and model probe | Dev-only | `server/src/dev/dev.controller.ts` | ✅ |
-| F31 | Database setup and migrations | Implemented | `server/scripts/setup-db.js`, `server/migrations/*` | ✅ |
-| F32 | API client with server wake-up handling | Implemented | `web/src/lib/api.ts`, `web/src/components/server-status.tsx` | ✅ |
-| F33 | Unit tests (engine, map) | Implemented | `server/test/*` | ✅ |
-| F34 | viaSocket app actions via stored connection (`source = 'viasocket'`) | Legacy | `integrations/viasocket.ts#runAppAction`, `execute.ts#runViaSocket`, `app_connection` table | ✅ |
-| — | Old DBOS runner runs (`workflow_run.engine = 'runner'`) | Legacy | `types.ts#RunRow.engine`, guarded in `wf-tools.ts#active` | ✅ (§11) |
-| — | List-form workflows (`workflow.steps`) | Legacy | `workflow.steps` column, stays `[]` | ✅ (§11) |
-| — | Mock shop (`shop_order`, `lookup_order`, `refund_order`) | Removed by migration 0009 | `migrations/0009_remove_mock_shop.sql` | ✅ (§5) |
-| — | Canvas read-only / run highlight mode | Partial (props exist, no caller) | `canvas.tsx` props `readOnly`, `highlight` | ✅ (§11) |
-| — | Evals harness, `ticket_timer` table, Langfuse, GTWY pass-through endpoint, spending limits, draft-reply mode, auth / multi-tenant | Planned | `docs/agent-workflows-full-plan.html`, `README.md` | ✅ (§12) |
+| F1 | Workflow management (list, create, save draft, enable, delete/archive) | Implemented | `server/src/workflows/workflows.service.ts`, `web/src/app/workflows/` | ✅ |
+| F2 | Canvas workflow editor (groups, blocks, arrows, palette, undo/redo, copy/paste, tidy) | Implemented | `web/src/components/canvas/*`, `web/src/lib/graph.ts` | ✅ |
+| F3 | Block text editor (`@action`, `{{variable}}` chips) and workflow variables | Implemented | `web/src/components/step-editor.tsx`, `canvas/var-select.tsx`, `server/src/types.ts#VARIABLES` | ✅ |
+| F4 | Workflow validation | Implemented | `server/src/workflows/graph.ts#validateGraph` | ✅ |
+| F5 | Draft and published copy (publish, no version history) | Implemented | `workflows.service.ts#publishWorkflow`, migration `0017` | ✅ |
+| F6 | Workflow map compiler (canvas → read-only agent map) | Implemented | `server/src/engine/map.ts` | ✅ |
+| F7 | Actions catalog (list, enable, needs approval, rename, delete) | Implemented | `server/src/actions/actions.controller.ts`, `web/src/app/actions/page.tsx` | ✅ |
+| F8 | viaSocket tool builder integration | Implemented | `web/src/components/viasocket-panel.tsx`, `server/src/integrations/*`, `POST /actions/from-flow` | ✅ |
+| F9 | Action execution with idempotency | Implemented | `server/src/actions/execute.ts`, `integrations/viasocket.ts#runFlow` | ✅ |
+| F10 | Conversations and messages (customer, bot, team, system) | Implemented | `server/src/playground/*` | ✅ |
+| F11 | Attachments (upload, serve) | Partial (images never reach the model or the approval card) | `playground.controller.ts` | ✅ |
+| F12 | Per-conversation event inbox and sweeper | Implemented | `server/src/agents/inbox.ts` | ✅ |
+| F13 | Supervisor agent (start, switch, delegate, hand off, reply) | Implemented | `server/src/agents/agents.ts`, `prompts.ts` | ✅ |
+| F14 | Workflow agent (one per published graph) | Implemented | `agents.ts#workflowAgent`, `#workflowTurn` | ✅ |
+| F15 | Step engine and `wf_*` tools | Implemented | `engine/engine.ts`, `agents/wf-tools.ts`, `agents/tools.ts` | ✅ |
+| F16 | Input blocks (text, email, number, phone; retries; answering ahead) | Implemented | `engine.ts#checkAnswer`, `wf-tools.ts#wfSaveInput` | ✅ |
+| F17 | Conditions (AI-judged and rules) | Implemented | `engine.ts#chooseByRules`, `wf-tools.ts#wfChooseCase` | ✅ |
+| F18 | Loops with repeat limit and "ask again" | Implemented | `engine.ts#follow`, `#rerun`; `graph.ts#cycles` | ✅ |
+| F19 | Save response (action output → variables) | Implemented | `engine.ts#saveResponse`, `canvas/save-response.tsx`, `GET /actions/:key/sample` | ✅ |
+| F20 | Text bubbles and the verbatim reply check | Implemented | `wf-tools.ts#wfCompleteStep`, `agents.ts#deliver` | ✅ |
+| F21 | Approvals (action approval, evidence review) | Implemented / Partial (evidence photos) | `runner/tasks.ts`, `runner/runs.controller.ts`, `wf-tools.ts#decideAgentApproval` | ✅ |
+| F22 | Timers: reminder, expiry, approval timeout | Implemented | `inbox.ts#sweep`, `#timerTurn`; `agents.ts#markWaiting` | ✅ |
+| F23 | Run controls: pause, resume, cancel, retry | Implemented | `runs.controller.ts`, `wf-tools.ts#controlAgentRun`, `agents.ts#controlTurn` | ✅ |
+| F24 | Hand-off to a person, yield, workflow switching | Implemented | `wf-tools.ts#wfHandoff`, `#wfSwitchWorkflow`; `agents.ts` | ✅ |
+| F25 | Stale-reply protection and quick-message merging | Implemented | `inbox.ts#drain`, `agents.ts#newerMessage`, `#deliver` | ✅ |
+| F26 | Playground (personas, chat as customer or team) | Implemented | `web/src/app/playground/page.tsx` | ✅ |
+| F27 | Run panel (steps view, timeline, controls) | Implemented | `web/src/components/run-panel.tsx`, `run-timeline.tsx`, `tool-call.tsx`, `json-view.tsx` | ✅ |
+| F28 | AI usage, cost and full call traces | Implemented | `agents/usage.ts`, `prices.ts`, `GET /ai-calls/:id`, `components/ai-call.tsx` | ✅ |
+| F29 | Embeddable chat widget (loader, iframe, setup page, demo host) | Implemented | `web/public/widget.js`, `web/src/app/{embed,embed-demo,chatbot}`, `widget.controller.ts` | ✅ |
+| F30 | Model provider configuration and Mastra setup | Implemented | `server/src/agents/mastra.ts`, `config.ts` | ✅ |
+| F31 | Dev endpoints (`/dev/*`) and model probe | Dev-only (probe has a bug, §11.3) | `server/src/dev/dev.controller.ts` | ✅ |
+| F32 | Database setup and migrations | Implemented | `server/scripts/setup-db.js`, `server/migrations/*` | ✅ |
+| F33 | API client with server wake-up handling | Implemented | `web/src/lib/api.ts` | ✅ |
+| F34 | App shell (navigation, pending-approvals badge, server status banner) | Implemented | `web/src/components/nav.tsx`, `server-status.tsx`, `app/layout.tsx` | ✅ |
+| F35 | Unit tests (engine, map) | Implemented | `server/test/*` | ✅ |
+| — | Evals harness, `ticket_timer` table, Langfuse tracing, GTWY model endpoint, spending limits | Planned | `docs/agent-workflows-full-plan.html` | §12 |
+| — | Auth, multi-tenant `org_id`, draft-reply mode | Planned | `README.md` "POC shortcuts" | §12 |
 
 ---
 
@@ -145,132 +156,125 @@ Every feature found in the code. Each row links to its section; the **Doc** colu
 
 ### 3.1 Components
 
-| Component | Tech | Responsibility |
+| Component | Responsibility | Code |
 |---|---|---|
-| **web** | Next.js 16, React 19, Tailwind 4, React Flow (`@xyflow/react`), TipTap 3 | Admin UI (workflows, canvas, actions, approvals, playground, chatbot embed) and the customer widget (`/embed`). Talks to the API over HTTP JSON; polls for updates. |
-| **server** | NestJS 12 (Express), `pg`, Mastra 1.75, AI SDK providers, zod | REST API; the per-conversation inbox; supervisor and workflow agents; step engine; action execution; timers sweeper. |
-| **Postgres** | — | All app data (public schema) and Mastra storage (`mastra` schema). |
-| **LLM provider** | OpenAI / Anthropic / OpenAI-compatible | Called by Mastra agents. |
-| **viaSocket** | Embed script `embed.viasocket.com`, flow run URLs `flow.sokt.io/func/<id>`, `viasocket-apps` SDK | Tools are built in viaSocket's builder; at runtime the server POSTs args to the flow's run URL. |
-| **Local disk** | `UPLOADS_DIR` (default `server/uploads`) | Attachment bytes. |
+| **Web app** (Next.js) | Admin screens (workflows, canvas, actions, approvals, playground, widget setup) and the customer widget page | `web/src/app/*`, `web/src/components/*` |
+| **Widget loader** | Plain script a host site pastes; injects a chat button and an iframe on `/embed` | `web/public/widget.js` |
+| **REST API** (NestJS) | Seven controllers; validation; persistence | `server/src/app.module.ts` |
+| **Event inbox** | Queues every trigger per conversation in `ticket_event`; runs them one at a time; sweeper for timers | `server/src/agents/inbox.ts` |
+| **Agents** (Mastra) | Supervisor (routing) and workflow agents (block-by-block execution), prompts, tool wiring | `server/src/agents/agents.ts`, `prompts.ts`, `tools.ts` |
+| **`wf_*` tools** | The only way run state changes: load run → check with engine → save → log event → return next step card | `server/src/agents/wf-tools.ts` |
+| **Step engine** | Pure rules: graph traversal, input formats, rules, loops, save response, action planning, step cards | `server/src/engine/engine.ts` |
+| **Map compiler** | Pure: published graph → numbered, read-only workflow map text for the agent prompt | `server/src/engine/map.ts` |
+| **Action executor** | Runs a tool once per idempotency key; calls viaSocket flow URLs | `server/src/actions/execute.ts`, `server/src/integrations/viasocket.ts` |
+| **Usage recorder** | One `llm_usage` row per agent call: tokens, cost, full per-round trace | `server/src/agents/usage.ts`, `prices.ts` |
+| **PostgreSQL** | All state: workflows, actions, conversations, runs, events, approvals, usage, inbox | `server/migrations/*.sql` |
+| **Model provider** | OpenAI / Anthropic / OpenAI-compatible endpoint | `server/src/agents/mastra.ts#model` |
+| **viaSocket** | Embedded builder (`embed.viasocket.com`) to create tools; `https://flow.sokt.io/func/<id>` to run them | `viasocket-panel.tsx`, `viasocket.ts` |
 
 ### 3.2 System architecture diagram
 
 ```mermaid
 flowchart LR
   subgraph Browser
-    Admin["Admin UI<br/>/workflows /actions /approvals /playground /chatbot"]
-    Widget["Customer widget<br/>/embed (iframe)"]
-    Host["Any host site<br/>+ widget.js"]
-    VSEmbed["viaSocket builder embed<br/>(inside Tool dialog)"]
+    Admin["Admin UI<br/>workflows · canvas · actions<br/>approvals · playground · chatbot"]
+    Host["Host site<br/>+ widget.js"] --> Embed["/embed iframe<br/>(customer chat)"]
+    VSE["viaSocket builder embed<br/>(inside the tool dialog)"]
   end
 
-  subgraph Web["web (Next.js)"]
-    Pages["Pages + components"]
-    Rewrite["/api/* rewrite<br/>(when API_ORIGIN set)"]
+  subgraph API["NestJS API :4011"]
+    WC[WorkflowsController]
+    AC[ActionsController]
+    IC[IntegrationsController]
+    PC[PlaygroundController]
+    WGC[WidgetController]
+    RC[RunsController]
+    DC["DevController<br/>(DEV_ENDPOINTS=1)"]
+    INBOX["Inbox<br/>drain per conversation<br/>+ 30 s sweeper"]
+    SUP[Supervisor agent]
+    WFA["Workflow agents<br/>(cached per graph)"]
+    TOOLS["wf_* tools"]
+    ENG["Step engine (pure)"]
+    MAP["Map compiler (pure)"]
+    EXEC[Action executor]
+    USAGE[Usage recorder]
   end
 
-  subgraph Server["server (NestJS)"]
-    Ctrls["Controllers<br/>workflows · actions · integrations<br/>playground · widget · runs · dev"]
-    Inbox["Inbox<br/>(ticket_event drain + 30 s sweeper)"]
-    Sup["Supervisor agent"]
-    WfA["Workflow agents<br/>(one per version)"]
-    Tools["wf_* tools"]
-    Engine["Step engine<br/>(pure)"]
-    Exec["Action executor<br/>(idempotent)"]
-    Usage["Usage recorder"]
-  end
+  DB[(PostgreSQL<br/>public + mastra schema)]
+  LLM[(Model provider)]
+  VS[(viaSocket<br/>flow.sokt.io)]
 
-  DB[("Postgres<br/>public + mastra schemas")]
-  Disk[("uploads/")]
-  LLM["LLM provider"]
-  VS["viaSocket<br/>flow.sokt.io"]
-
-  Host --> Widget
-  Admin --> Pages
-  Widget --> Pages
-  Pages -->|HTTP JSON, polling| Ctrls
-  Pages -.-> Rewrite -.-> Ctrls
-  VSEmbed -->|window 'flow' event| Admin
-  Ctrls --> DB
-  Ctrls --> Disk
-  Ctrls -->|enqueue| Inbox
-  Inbox --> Sup
-  Sup -->|delegate| WfA
-  Sup --> Tools
-  WfA --> Tools
-  Tools --> Engine
-  Tools --> Exec
-  Exec -->|POST args| VS
-  Sup --> LLM
-  WfA --> LLM
-  Sup --> Usage
-  WfA --> Usage
-  Inbox --> DB
-  Tools --> DB
-  Usage --> DB
+  Admin -->|fetch, poll 1.5–3 s| WC & AC & IC & PC & RC
+  Embed -->|fetch, poll 1.5 s| WGC
+  VSE -->|window 'flow' event| Admin
+  Admin -->|POST /actions/from-flow| AC
+  PC & WGC -->|customer message| INBOX
+  RC -->|approval decided · control| INBOX
+  INBOX --> SUP --> WFA
+  SUP & WFA --> TOOLS --> ENG
+  WFA -. prompt .- MAP
+  TOOLS --> EXEC --> VS
+  SUP & WFA --> USAGE
+  SUP & WFA --> LLM
+  WC & AC & PC & WGC & RC & INBOX & TOOLS & EXEC & USAGE --> DB
 ```
 
 ### 3.3 Communication patterns
 
-- **Browser → API**: plain JSON over HTTP (`web/src/lib/api.ts#api`). No websockets: screens **poll**
-  (Playground every 1.5 s, widget every 1.5 s, approvals page and nav badge every 3 s).
-- **API → agents**: never inline. Every trigger (customer message, approval decision, run control, timer) becomes a
-  `ticket_event` row; the inbox handles a conversation's events **one at a time, in insert order** (`inbox.ts#drain`).
-- **Agents → state**: only via `wf_*` tools (`wf-tools.ts`), which load the run, ask the engine, save the run and append
-  `run_event` rows. The run id comes from the Mastra `RequestContext`, never from the model (`tools.ts#runIdOf`).
-- **Server → viaSocket**: HTTP POST to the flow URL with the agent's arguments (`viasocket.ts#runFlow`).
-- **viaSocket → app**: the embedded builder emits a `flow` event in the browser; the web app forwards it to
-  `POST /actions/from-flow`.
-- **Widget ↔ host page**: `postMessage({ t0: 'close' })` from the iframe; the loader checks the origin.
+| From → To | Mechanism | Notes |
+|---|---|---|
+| Browser → API | JSON over HTTP (`web/src/lib/api.ts#api`) | No WebSockets. Screens **poll**: playground and widget every 1.5 s, approvals page and nav badge every 3 s. |
+| Browser → API (deployed) | Same origin `/api/*`, rewritten by Next to `API_ORIGIN` | `web/next.config.ts` |
+| API → inbox | `enqueue()` inserts a `ticket_event` row and starts a drain loop | `inbox.ts#enqueue`, `#kick` |
+| Inbox → agents | Direct function calls: `customerTurn`, `approvalTurn`, `controlTurn`, `timerTurn` | One event at a time per conversation |
+| Supervisor → workflow agent | Synchronous tool call `delegate_to_workflow` runs `workflowTurn` inside the supervisor's turn | Shared `Turn` object in Mastra `RequestContext` |
+| Agents → state | Mastra tools → `wf-tools.ts` functions → DB | The run id comes from the request context, never from the model (`tools.ts#runIdOf`) |
+| Executor → viaSocket | `axios.post(flowUrl, args)`, 60 s timeout | `viasocket.ts#runFlow` |
+| viaSocket embed → web | `embed.on('flow', …)` callback in the page | `viasocket-panel.tsx` |
+| Widget iframe → host page | `postMessage({ t0: 'close' })`; loader checks the origin | `embed/page.tsx`, `widget.js` |
 
 ### 3.4 Feature interaction diagram
 
 ```mermaid
 flowchart TB
-  Canvas[F2 Canvas editor] --> Validate[F3 Validation]
-  Validate --> Publish[F4 Publish]
-  Publish --> Map[F5 Map compiler]
-  Actions[F6 Actions catalog] --> Validate
-  VSBuilder[F7 viaSocket builder] --> Actions
-
-  Chat[F9 Conversations<br/>Playground F25 / Widget F28] --> Inbox[F11 Inbox]
-  ApprovalsUI[F20 Approvals UI] --> Inbox
-  Controls[F22 Run controls] --> Inbox
-  Sweeper[F21 Timers] --> Inbox
-
-  Inbox --> Sup[F12 Supervisor]
-  Sup -->|start / switch| Runs[(workflow_run)]
-  Sup -->|delegate| WfAgent[F13 Workflow agent]
-  Map --> WfAgent
-  WfAgent --> Tools[F14 wf_* tools]
-  Tools --> Engine[Engine: F15 inputs · F16 conditions · F17 loops · F18 save · F19 bubbles]
-  Tools --> Exec[F8 Action execution]
-  Tools --> Appr[F20 Approval tasks]
-  Exec --> VS[viaSocket flow]
-  Sup --> Cost[F27 Usage & cost]
-  WfAgent --> Cost
-  Runs --> Panel[F26 Run panel]
-  Cost --> Panel
+  F1[F1 Workflow mgmt] --> F2[F2 Canvas] --> F3[F3 Text editor + variables]
+  F2 --> F4[F4 Validation] --> F5[F5 Publish]
+  F7[F7 Actions catalog] --> F3
+  F8[F8 viaSocket builder] --> F7
+  F5 --> F6[F6 Map compiler] --> F14[F14 Workflow agent]
+  F10[F10 Messages] --> F12[F12 Inbox]
+  F29[F29 Widget] --> F10
+  F26[F26 Playground] --> F10
+  F12 --> F13[F13 Supervisor] --> F14
+  F13 --> F24[F24 Hand-off / switch]
+  F14 --> F15[F15 Engine + wf_* tools]
+  F15 --> F16[F16 Inputs] & F17[F17 Conditions] & F18[F18 Loops] & F19[F19 Save response] & F20[F20 Bubbles]
+  F15 --> F9[F9 Execution] --> F8
+  F15 --> F21[F21 Approvals] --> F12
+  F22[F22 Timers] --> F12
+  F23[F23 Run controls] --> F12
+  F13 & F14 --> F28[F28 Usage + cost]
+  F15 & F28 --> F27[F27 Run panel] --> F26
+  F25[F25 Stale replies] -. guards .- F12 & F14
 ```
 
 ### 3.5 Shared utilities and cross-cutting services
 
-| Utility | File | Used by |
+| Utility | Purpose | Used by |
 |---|---|---|
-| `q`, `one`, `tx` (pg pool helpers, pool size 10) | `server/src/db.ts` | Every server module |
-| `config` (env reads; throws if `DATABASE_URL` missing) | `server/src/config.ts` | Everything |
-| `addEvent` (append to `run_event`) | `server/src/runner/events.ts` | Tools, agents, inbox, tasks |
-| `loadRun`, `saveRun`, `baseVars`, `loadTranscript` | `server/src/runner/context.ts` | Tools, agents |
-| `openTask` (approval task, one pending per run+node) | `server/src/runner/tasks.ts` | `wf_*` tools |
-| `renderInline`, `stepActions` (Inline[] → text / action keys) | `server/src/workflows/inline.ts` | Engine, map, validation |
-| `trackedGenerate`, `recordUsage`, `priceOf` | `server/src/agents/usage.ts` | Every agent call |
-| `api`, `ApiError`, `usd`, `money` | `web/src/lib/api.ts` | Every web page |
-| Graph edit helpers (immutable) | `web/src/lib/graph.ts` | Canvas, run panel |
-| UI primitives (`Button`, `Card`, `Toggle`, `StatusChip`, `AttentionDot`) | `web/src/components/ui.tsx` | All pages |
+| `server/src/db.ts` (`q`, `one`, `tx`, `pool` max 10) | Thin `pg` helpers; `tx` wraps begin/commit/rollback | Every server module |
+| `server/src/config.ts` | All env reads; refuses to boot without `DATABASE_URL`; limits `maxVisits = 100`, `maxGraphSteps = 50` | Server-wide |
+| `server/src/types.ts` | Graph, run, facts, action types; `RULE_OPS`, `INPUT_FORMATS`, `ACTIVE` statuses, built-in `VARIABLES` | Server-wide |
+| `server/src/workflows/inline.ts` | `renderInline` (rich text → prompt text), `stepActions` (actions mentioned in a step) | Engine, map compiler |
+| `server/src/runner/events.ts#addEvent` | Appends a `run_event` row (timeline and audit) | Tools, agents, inbox |
+| `server/src/runner/context.ts` | `loadRun`, `saveRun`, `loadTranscript`, `baseVars` | Tools, agents |
+| `server/src/runner/tasks.ts#openTask` | Opens (or reuses) the pending approval task of a step | `wf-tools.ts#wfCallAction` |
+| `server/src/agents/usage.ts#trackedGenerate` | Every agent call goes through it: `agent.generate` + `llm_usage` row | Agents, probe |
+| `web/src/lib/api.ts` | Fetch wrapper, error shape (`ApiError` with `issues`), wake-up retry, `usd()` | All pages |
+| `web/src/lib/graph.ts` | Client copy of the graph types plus immutable edit helpers | Canvas, run panel |
+| `web/src/components/ui.tsx` | `Button`, `Toggle`, `StatusChip`, `Card`, `AttentionDot` | All pages |
 
-There is **no middleware** (no auth guard, no interceptors, no global exception filter). NestJS defaults turn thrown
-`HttpException`s into JSON error responses; the body parser accepts JSON up to 8 MB (`main.ts`).
+No middleware, guards, interceptors or pipes are registered in Nest (`main.ts` only sets an 8 MB JSON body limit and CORS).
 
 ---
 
@@ -278,869 +282,982 @@ There is **no middleware** (no auth guard, no interceptors, no global exception 
 
 ```
 workflow-poc-agentic/
-├─ README.md                    How it works, how to run, POC shortcuts
-├─ render.yaml                  Render blueprint: Postgres + API + web
-├─ .claude/launch.json          Dev server entries (agentic-server :4011, agentic-web :4010)
+├─ README.md                  How it works, how to run, POC shortcuts
+├─ render.yaml                Render blueprint: Postgres + API + web
+├─ .claude/launch.json        Dev server entries (agentic-server :4011, agentic-web :4010)
 ├─ docs/
-│  ├─ agent-run-workflows-plan.html   Options study: letting an agent run workflows (Mastra vs GTWY)
-│  ├─ agent-workflows-full-plan.html  The plan this POC implements (stages, tool contract, risks)
-│  └─ FUNCTIONAL_DOCUMENTATION.md     This file
-├─ server/                      NestJS API + agents
+│  ├─ agent-workflows-full-plan.html   Target design and stages (source of "Planned" items)
+│  ├─ agent-run-workflows-plan.html    Earlier plan
+│  └─ FUNCTIONAL_DOCUMENTATION.md      This file
+├─ server/
+│  ├─ migrations/0001…0017.sql   Schema history (no 0008); applied once each by scripts/setup-db.js
+│  ├─ scripts/setup-db.js        Creates the database if missing, applies migrations
 │  ├─ src/
-│  │  ├─ main.ts                Boot: Nest app, body limit, CORS, listen, startInbox()
-│  │  ├─ app.module.ts          Registers all 7 controllers (no providers/modules)
-│  │  ├─ config.ts              Env config + limits (maxVisits 100, maxGraphSteps 50)
-│  │  ├─ db.ts                  pg Pool + q/one/tx
-│  │  ├─ types.ts               Shared domain types: graph, actions, run, facts, waiting_for, built-in variables
-│  │  ├─ engine/
-│  │  │  ├─ engine.ts           ★ Pure step engine: flow, inputs, rules, loops, save response, action plans, step cards
-│  │  │  └─ map.ts              ★ Canvas → read-only workflow map (+ prompt text)
-│  │  ├─ agents/
-│  │  │  ├─ agents.ts           ★ Supervisor, workflow agents, turns, reply delivery, waiting
-│  │  │  ├─ inbox.ts            ★ ticket_event queue, drain loop, timers, sweeper
-│  │  │  ├─ wf-tools.ts         ★ wf_* moves, run start, approvals, controls
-│  │  │  ├─ tools.ts            wf_* as Mastra tools (zod schemas)
-│  │  │  ├─ prompts.ts          Base, supervisor, workflow and per-turn prompt text
-│  │  │  ├─ mastra.ts           Model factory, Mastra storage/memory, dev probe agent
-│  │  │  ├─ usage.ts            llm_usage rows, cost, request/response trace
-│  │  │  └─ prices.ts           $/1M-token price table
-│  │  ├─ workflows/             Controller, service (CRUD/publish), graph validation, inline text helpers
-│  │  ├─ actions/               Actions controller (CRUD, from-flow, sample) + executor
-│  │  ├─ integrations/          viaSocket builder token, flow runner, legacy app actions, template filler
-│  │  ├─ playground/            Conversations, messages, attachments, AI call detail, widget API
-│  │  ├─ runner/                Run context load/save, run_event writer, approval tasks, runs/approvals controller
-│  │  └─ dev/                   /dev/* routes (DEV_ENDPOINTS=1)
-│  ├─ migrations/0001…0015.sql  Schema history (0008 is absent)
-│  ├─ scripts/setup-db.js       Create DB if missing, apply migrations once each
-│  ├─ test/                     node:test unit tests for engine + map (fixtures: "Item return" graph)
-│  └─ dist/, dist-test/         Build outputs (git-ignored)
-└─ web/                         Next.js app
-   ├─ public/widget.js          Embeddable loader (bubble + iframe, window.Ticket0Chat)
-   ├─ next.config.ts            /api/* → API_ORIGIN rewrite
+│  │  ├─ main.ts, app.module.ts, config.ts, db.ts, types.ts
+│  │  ├─ workflows/   controller + service (CRUD, publish), graph.ts (validation), inline.ts
+│  │  ├─ engine/      engine.ts (pure step rules), map.ts (pure map compiler)
+│  │  ├─ agents/      agents.ts (supervisor, workflow agent, turns), inbox.ts, wf-tools.ts, tools.ts,
+│  │  │               prompts.ts, mastra.ts (model + storage), usage.ts, prices.ts
+│  │  ├─ actions/     actions.controller.ts (catalog, from-flow), execute.ts (idempotent execution)
+│  │  ├─ integrations/ viasocket.ts (builder token, runFlow, flowError), integrations.controller.ts
+│  │  ├─ runner/      runs.controller.ts (controls, approvals), context.ts, events.ts, tasks.ts
+│  │  ├─ playground/  playground.controller.ts, widget.controller.ts, conversations.ts
+│  │  └─ dev/         dev.controller.ts (DEV_ENDPOINTS only)
+│  └─ test/           engine.test.ts, map.test.ts, fixtures.ts (node:test)
+└─ web/
+   ├─ public/widget.js           Embeddable loader
+   ├─ next.config.ts             /api rewrite to API_ORIGIN
    └─ src/
-      ├─ app/                   Routes: / → /workflows, workflows, workflows/[id], actions, approvals,
-      │                         playground, chatbot, embed, embed-demo
-      ├─ components/
-      │  ├─ canvas/             ★ React Flow canvas, group cards, arrows, save-response, variable picker
-      │  ├─ step-editor.tsx     TipTap editor with @action and {{variable}} mentions
-      │  ├─ run-panel.tsx       ★ Teammate view of a run: cost, controls, steps, approvals card
-      │  ├─ run-timeline.tsx    Plain-language timeline from run_event
-      │  ├─ viasocket-panel.tsx Tool dialog with embedded viaSocket builder
-      │  └─ ai-call.tsx, tool-call.tsx, json-view.tsx, inline-text.tsx, nav.tsx, server-status.tsx, ui.tsx
-      └─ lib/                   api client, graph types + edit helpers, inline text type
+      ├─ app/  workflows/, workflows/[id]/, actions/, approvals/, playground/, chatbot/, embed/, embed-demo/,
+      │        layout.tsx (shell), page.tsx (redirect to /workflows), globals.css (tokens, editor and canvas styles)
+      ├─ components/ canvas/ (canvas.tsx, group-card.tsx, edge.tsx, save-response.tsx, var-select.tsx, context.ts),
+      │              step-editor.tsx, viasocket-panel.tsx, run-panel.tsx, run-timeline.tsx, tool-call.tsx,
+      │              ai-call.tsx, json-view.tsx, inline-text.tsx, nav.tsx, server-status.tsx, ui.tsx
+      └─ lib/  api.ts, graph.ts, inline.ts
 ```
 
-★ = the files that hold most of the business logic.
+**Where the business logic lives**
+
+| Concern | File(s) |
+|---|---|
+| Workflow rules at run time | `server/src/engine/engine.ts` (pure) and `server/src/agents/wf-tools.ts` (applies them to stored runs) |
+| What makes a workflow publishable | `server/src/workflows/graph.ts#validateGraph` |
+| Routing and agent behaviour | `server/src/agents/agents.ts`, `server/src/agents/prompts.ts` |
+| Ordering, timers, retries after restart | `server/src/agents/inbox.ts` |
+| Running tools exactly once | `server/src/actions/execute.ts` |
+| Canvas editing semantics | `web/src/lib/graph.ts` |
+
+Build output (`server/dist`, `server/dist-test`, `web/.next`), `node_modules`, `uploads/` and `.env` files are
+git-ignored (`.gitignore`) and are not documented.
 
 ---
 
 ## 5. Data model
 
-All tables live in the `public` schema; Mastra keeps its own tables in schema `mastra` (`mastra.ts#storage`).
-The schema is the result of applying `server/migrations/*.sql` in order.
-
 ### 5.1 Entity relationship diagram
+
+State after migration `0017`. Mastra creates its own tables in schema `mastra` (⚠ Unverified which ones; only the dev
+probe agent uses Mastra memory).
 
 ```mermaid
 erDiagram
-  workflow ||--o{ workflow_version : "publishes"
-  workflow }o--|| workflow_version : "published_version_id"
+  workflow ||--o{ workflow_run : "started from (workflow_id)"
+  conversation ||--o{ workflow_run : has
   conversation ||--o{ message : has
   conversation ||--o{ attachment : has
-  conversation ||--o{ workflow_run : has
-  conversation ||--o{ ticket_event : "inbox"
-  conversation ||--o{ llm_usage : "AI calls"
-  workflow_version ||--o{ workflow_run : "pinned version"
-  workflow_run ||--o{ run_event : timeline
+  conversation ||--o{ approval_task : has
+  conversation ||--o{ ticket_event : queues
+  conversation ||--o{ llm_usage : costs
+  workflow_run ||--o{ run_event : logs
   workflow_run ||--o{ approval_task : waits_on
-  workflow_run ||--o{ action_run : executes
+  workflow_run ||--o{ action_run : runs
   workflow_run ||--o{ message : "bot replies (run_id)"
-  workflow_run ||--o{ llm_usage : "run_id"
-  approval_task ||--o{ action_run : "approved run"
+  workflow_run ||--o{ llm_usage : "run_id (set null)"
+  approval_task ||--o{ action_run : "approved runs"
   action ||..o{ action_run : "action_key (text, no FK)"
-  app_connection ||..o{ action : "via_service_id (legacy)"
+  action ||..o{ workflow : "action_keys[] (text, no FK)"
+  message ||..o{ attachment : "attachment_ids[] (no FK)"
 ```
 
 ### 5.2 Tables
 
-| Table | Purpose | Key columns / rules |
+| Table | Purpose | Key columns and constraints |
 |---|---|---|
-| `workflow` | Editable draft + live settings | `name` unique among non-archived; `when_to_use`; `graph` (canvas JSON); `action_keys[]`; `step_count`; `enabled`; `published_version_id`; `has_unpublished_changes`; `row_version` (optimistic lock); `archived_at` (soft delete). `steps`, `template` are legacy/unused. |
-| `workflow_version` | Frozen published snapshot | `(workflow_id, version)` unique; `graph`; `action_keys`; `agent_map` (built at publish). |
-| `action` | Tools a workflow can mention as `@key` | `key` matches `^[a-z][a-z0-9_]{1,47}$`; `input_schema` (JSON schema subset); `requires_approval`; `enabled`; `source` ∈ builtin / mock / viasocket / viasocket_flow; `via_flow_id` (unique), `via_flow_url`; `details_edited`; `subject_field`, `amount_field` (used for approval summaries). Built-ins seeded: `request_approval`, `escalate_to_human`. |
-| `conversation` | Stand-in for a ticket | `customer_name`, `customer_email`, `channel` ∈ playground / widget. |
-| `message` | Chat transcript | `role` ∈ customer / bot / team / system; `attachment_ids[]`; `run_id`. System messages are notes for teammates and are hidden from agents and the widget. |
-| `attachment` | Uploaded file metadata | `sha256`, `size_bytes`, `path` on disk. |
-| `workflow_run` | One execution of a version on a conversation | `status` (see §10); `current_node_id`; `facts` (JSON state); `waiting_for`; `outbox` (pending bubbles); `paused_from`; `engine` ∈ runner / agent. **Unique partial index**: at most one active run per conversation. |
-| `run_event` | Append-only timeline | `actor` (system / ai / customer / `user:<name>`), `type`, `data`. |
-| `approval_task` | Human decision a run waits on | `kind` ∈ evidence / action; `action_key`, `action_args`, `amount_minor`, `summary`, `evidence`; `status` ∈ pending / approved / rejected / expired / cancelled; `due_at`. **Unique partial index**: one pending task per (run, node). |
-| `action_run` | Every action execution | `idempotency_key` **unique** (`<run>:<node>:<visit>`); `mode` ∈ auto / approved / test; `status` ∈ running / succeeded / failed; `args`, `result`, `error`, `visit`. |
-| `ticket_event` | Per-conversation inbox | `kind` ∈ customer_message / approval_decided / timer / control; `status` ∈ pending / working / done / failed; `error` also records why an event was skipped. |
-| `llm_usage` | One row per model call | `agent`, `model`, tokens, `cost_usd`, `started_at`, `trace` (full request/response per round). |
-| `app_connection` | Legacy viaSocket app connection | `script_id_enc` (AES-256-GCM). No code in this repo creates rows. |
-| `app_setting` | Key/value settings | Created in 0001; **not referenced by any code**. |
-| `schema_migrations` | Applied migration names | Created by `setup-db.js`. |
+| `workflow` | One workflow: the **draft** and the **published copy** on one row | `graph` (draft canvas, not null), `when_to_use`, `action_keys`, `step_count`; `published_graph`, `published_when_to_use`, `published_action_keys`, `published_at`; `enabled`, `has_unpublished_changes`, `row_version` (optimistic lock), `archived_at` (soft delete); name unique among non-archived rows |
+| `action` | Tools workflows mention as `@key` | `key` (`^[a-z][a-z0-9_]{1,47}$`), `name`, `description`, `input_schema`, `requires_approval`, `enabled`, `builtin`, `source` (`builtin` \| `viasocket_flow`), `via_flow_id` (unique), `via_flow_url`, `details_edited` |
+| `conversation` | Stands in for a ticket | `customer_name`, `customer_email`, `channel` (`playground` \| `widget`) |
+| `message` | Chat transcript | `role` (`customer` \| `bot` \| `team` \| `system`), `text`, `attachment_ids[]`, `run_id` |
+| `attachment` | Uploaded files | `file_name`, `mime_type`, `size_bytes`, `sha256`, `path` (local disk) |
+| `workflow_run` | One execution of a workflow on a conversation | `workflow_id`, `workflow_name`, `graph` (**own copy** of the published graph), `status`, `current_node_id`, `facts`, `waiting_for`, `outbox`, `paused_from`, `end_reason`; **one active run per conversation** (partial unique index on active statuses) |
+| `run_event` | Append-only timeline | `run_id`, `node_id`, `actor` (`ai`, `system`, `customer`, `user:<name>`), `type`, `data` |
+| `approval_task` | A decision a run waits on | `kind` (`evidence` \| `action`), `action_key`, `action_args`, `summary`, `evidence`, `status` (`pending` \| `approved` \| `rejected` \| `expired` \| `cancelled`), `decided_by`, `decision_note`, `due_at`; one pending task per (run, node) |
+| `action_run` | Every tool execution | `idempotency_key` (unique, `<run>:<node>:<visit>`), `mode` (`auto` \| `approved`; `test` allowed but unused), `args`, `status`, `result`, `error`, `visit`, `approval_task_id` |
+| `ticket_event` | Per-conversation inbox | `kind` (`customer_message` \| `approval_decided` \| `timer` \| `control`), `payload`, `status` (`pending` \| `working` \| `done` \| `failed`), `error` |
+| `llm_usage` | One row per model call | `agent`, `model` (`provider/model`), `input_tokens`, `output_tokens`, `cost_usd`, `started_at`, `trace` (per-round request and response) |
+| `schema_migrations` | Applied migration files | Created by `scripts/setup-db.js` |
 
-### 5.3 Run state (`workflow_run.facts`)
+Built-in actions seeded by `0001_init.sql` and still present: `request_approval` (evidence review) and
+`escalate_to_human`. Tables removed over time: `workflow_version`, `shop_order`, `app_setting`, `app_connection`, schema
+`dbos` (`0009`, `0016`, `0017`).
 
-Defined in `server/src/types.ts#Facts`. The engine mutates it in place; tools save it.
+### 5.3 Run state (`workflow_run.facts`, `waiting_for`, `outbox`)
 
-| Field | Meaning |
-|---|---|
-| `vars` | The workflow's own variables (input answers, saved responses). |
-| `varsBy` | Block id → variables it filled ("ask again" clears them). |
-| `outputs` | Block id → its result (input answer, action output, approval decision, or `{ approval_task_id }` while waiting). |
-| `cases` | Condition id → chosen case and reason. |
-| `attempts` | Block id → invalid input count. |
-| `visits` | Loop edge id → visit number (also feeds the idempotency visit). |
-| `trail` | Finished block ids in order (detects loops). |
-| `since`, `previous`, `asked` | Loop bookkeeping: when a block was re-entered, its result before re-entry, when an input last asked. |
-| `collected`, `collectedBy` | Older form of values (seeded with `customer_name`, `email` at run start). |
+| Field | Meaning | Written by |
+|---|---|---|
+| `facts.vars` | The workflow's own variables: input answers and saved responses | `engine.ts#saveAnswer`, `#saveResponse` |
+| `facts.varsBy` | Block id → variables it filled ("ask again" clears them) | same |
+| `facts.outputs` | Block id → its result (`{var: value}` for inputs, tool result for steps, `{approval_task_id}` while waiting, `{approved, …}` after review) | tools |
+| `facts.cases` | Condition id → chosen case and reason | `engine.ts#recordCase` |
+| `facts.attempts` | Invalid-answer count per input | `engine.ts#countAsk` |
+| `facts.visits` | Loop edge id → visit number; feeds the idempotency visit | `engine.ts#rerun` |
+| `facts.trail` | Block ids in the order they finished (detects loop-backs) | `engine.ts#follow` |
+| `facts.collected` | Seeded with `customer_name` and `email`; read only as a fallback | `wf-tools.ts#startAgentRun` |
+| `facts.since`, `facts.previous` | Written on loop-backs, never read | `engine.ts#rerun` (Legacy) |
+| `facts.asked`, `facts.collectedBy` | Deleted or read but never set | Legacy |
+| `waiting_for` | `{type:'customer', node_id, expects, remind_at, expires_at, reminded}` or `{type:'approval', node_id, task_id, due_at}` | `agents.ts#markWaiting`, `wf-tools.ts#wfCallAction` |
+| `outbox` | Text bubbles the next reply must contain word for word | `wf-tools.ts#wfCompleteStep`; cleared by `agents.ts#deliver` |
+| `paused_from` | Status and wait to restore on resume | `wf-tools.ts#controlAgentRun` |
 
 ---
 
 ## 6. Configuration and environment
 
-### 6.1 Server (`server/.env`, see `server/.env.example`, read in `server/src/config.ts`)
+### 6.1 Server (`server/.env`; template `server/.env.example`; read in `server/src/config.ts`)
 
 | Variable | Default | Required | Effect |
 |---|---|---|---|
-| `DATABASE_URL` | — | **Yes** (boot fails without it) | Postgres connection. |
-| `PORT` | 4011 | No | API port. |
-| `CORS_ORIGINS` | `http://localhost:4010` | No | Comma list for `enableCors`. |
-| `LLM_PROVIDER` | `openai` | For agents | `openai` · `anthropic` · `openai-compatible`. |
-| `LLM_MODEL`, `LLM_API_KEY` | — | For agents | Missing → agent calls throw "Set LLM_MODEL and LLM_API_KEY". |
-| `LLM_BASE_URL` | — | Only for `openai-compatible` | Gateway base URL. |
-| `REMIND_AFTER_SEC` / `EXPIRE_AFTER_SEC` / `APPROVAL_TIMEOUT_SEC` | 120 / 600 / 1800 | No | Customer reminder, chat expiry, approval timeout. |
-| `VIASOCKET_ORG_ID`, `VIASOCKET_PROJECT_ID`, `VIASOCKET_EMBED_SECRET` | — | For tools | Builder token signing; SDK client. |
-| `VIASOCKET_UID` | `workflow-poc-agentic` | No | viaSocket end-user id (the POC is one end user). |
-| `POC_ENCRYPTION_KEY` | — | Legacy only | 32-byte hex key to decrypt `app_connection.script_id_enc` (F34). |
-| `DEV_ENDPOINTS` | unset | No | `1` enables `/dev/*`. |
-| `UPLOADS_DIR` | `<cwd>/uploads` | No | Attachment folder (read in `playground.controller.ts`, not in `config.ts`). |
+| `DATABASE_URL` | — | **Yes** (boot fails without it) | Postgres connection; also used by Mastra's `PostgresStore` |
+| `PORT` | `4011` | No | API port |
+| `CORS_ORIGINS` | `http://localhost:4010` | No | Comma-separated allowed origins |
+| `LLM_PROVIDER` | `openai` | No | `openai` \| `anthropic` \| `openai-compatible` |
+| `LLM_MODEL`, `LLM_API_KEY` | empty | To answer chats | Missing values throw on the first agent call, not at boot |
+| `LLM_BASE_URL` | empty | For `openai-compatible` | Base URL of the gateway (README: a GTWY pass-through endpoint later) |
+| `REMIND_AFTER_SEC` / `EXPIRE_AFTER_SEC` / `APPROVAL_TIMEOUT_SEC` | 120 / 600 / 1800 | No | Customer reminder, customer silence expiry, approval timeout |
+| `VIASOCKET_ORG_ID`, `VIASOCKET_PROJECT_ID`, `VIASOCKET_EMBED_SECRET` | empty | For the tool builder | Signs the builder token; `/integrations/builder-token` fails without the secret |
+| `VIASOCKET_UID` | `workflow-poc-agentic` | No | viaSocket end user the builder works as |
+| `DEV_ENDPOINTS` | unset | No | `1` enables `/dev/*` |
+| `UPLOADS_DIR` | `<cwd>/uploads` | No | Attachment folder (read in `playground.controller.ts`, not listed in `.env.example`) |
 
-Hard-coded limits (`config.ts`): `maxVisits = 100` (loop repeat limit range), `maxGraphSteps = 50`.
-Engine constants: `MAX_ASKS = 3` (`engine.ts`), `START_CONFIDENCE = 0.7`, `SWITCH_CONFIDENCE = 0.8` (`wf-tools.ts`),
-supervisor `maxSteps: 6`, workflow agent `maxSteps: 24`, history window 20 messages (`agents.ts`).
-
-### 6.2 Web (`web/.env.example`, `next.config.ts`)
+### 6.2 Web (`web/.env.example`, `web/next.config.ts`)
 
 | Variable | Effect |
 |---|---|
-| `NEXT_PUBLIC_API_URL` | API base used by the browser (default `http://localhost:4011`; `/api` in Render). |
-| `API_ORIGIN` | When set, Next rewrites `/api/:path*` to this origin, so the browser needs no CORS. |
+| `NEXT_PUBLIC_API_URL` | API base used by the browser. Local: `http://localhost:4011`. Deployed: `/api` |
+| `API_ORIGIN` | When set, Next rewrites `/api/:path*` to it, so the browser makes same-origin calls (no CORS) |
 
 ---
 
 ## 7. Deployment
 
-Supported by `render.yaml` (Render Blueprint):
+`render.yaml` defines a Render Blueprint:
 
 ```mermaid
 flowchart LR
-  User((Browser)) --> WebSvc["workflow-poc-agentic-web<br/>next start (Node 22, free plan)"]
-  WebSvc -->|/api/* rewrite| ApiSvc["workflow-poc-agentic-api<br/>npm run db:setup && npm start"]
-  ApiSvc --> PG[("workflow-poc-agentic-db<br/>Postgres, free plan")]
-  ApiSvc --> LLMp["LLM provider"]
-  ApiSvc --> VSf["viaSocket flows"]
+  U[Browser] --> W["workflow-poc-agentic-web<br/>next start (NEXT_PUBLIC_API_URL=/api)"]
+  W -->|"/api/* rewrite (API_ORIGIN)"| A["workflow-poc-agentic-api<br/>npm run db:setup && npm start<br/>health check GET /actions"]
+  A --> D[("workflow-poc-agentic-db<br/>Render Postgres, free plan")]
+  A --> L[(LLM provider)]
+  A --> V[(viaSocket)]
 ```
 
-- **API**: builds with `nest build`; on every start runs migrations (`db:setup`) then `node dist/main.js`. Health check
-  `GET /actions`. Secrets (`LLM_API_KEY`, `VIASOCKET_*`, `POC_ENCRYPTION_KEY`) are entered in Render (`sync: false`).
-  Model set to `openai` / `gpt-6-luna`.
-- **Web**: `next build`, `next start -p $PORT`; `NEXT_PUBLIC_API_URL=/api`, `API_ORIGIN` points to the API service.
-- **Free-plan sleep**: the web client waits for the API to wake (F32).
-- **Local**: `.claude/launch.json` starts `npm --prefix server run dev` (4011) and `npm --prefix web run dev` (4010).
-- ⚠ Risk: attachments go to the API's local disk. ⚠ Unverified: whether the Render free plan keeps that disk across
-  restarts and deploys; if not, uploaded files are lost while their DB rows remain.
+- All three are on the **free plan**; Node 22. Migrations run on every API start (each applies once).
+- Preset env: `LLM_PROVIDER=openai`, `LLM_MODEL=gpt-6-luna`, the three timer values, `VIASOCKET_UID`. Secrets
+  (`LLM_API_KEY`, `VIASOCKET_*`) are `sync: false` and entered in Render.
+- The free API sleeps when idle; the web client's wake-up handling (F33) exists for this.
+- ⚠ Unverified: whether the API's local `uploads/` folder survives restarts on Render (free web services have no
+  persistent disk in Render's model; nothing in `render.yaml` adds one).
+- Local development: `npm run dev` in each package, or the `.claude/launch.json` entries (README).
 
 ---
 
 ## 8. Feature documentation
 
+Each feature uses the same headings. "Data" names tables from §5; "Security" notes the POC has **no authentication on
+any route** (see §11.1) and lists anything feature-specific.
+
 ### F1 Workflow management
 
-1. **Purpose.** Let authors keep a list of workflows, each a playbook for one kind of customer request.
-2. **Business logic.** A workflow has a name, a "when to use" description (the supervisor routes on it), a canvas graph,
-   an enabled switch and a published version. Deleting **archives** it: running conversations finish on their pinned
-   version; new ones can't start it.
-3. **Flow.**
-   1. `/workflows` lists non-archived workflows with step count, live version and an "unpublished changes" hint.
-   2. **New workflow** → `POST /workflows` creates "Untitled workflow" (or "… N" if taken) with an empty Start group, then opens the editor.
-   3. The editor saves drafts with `PUT /workflows/:id` (sends `row_version`).
-   4. The toggle calls `PATCH /workflows/:id { enabled }`; enabling requires a published version.
-   5. Delete calls `DELETE /workflows/:id` (sets `archived_at`, `enabled = false`).
-4. **Components.** `web/src/app/workflows/page.tsx`, `web/src/app/workflows/[id]/page.tsx`; `server/src/workflows/workflows.controller.ts`, `workflows.service.ts`.
-5. **APIs.** `GET/POST /workflows`, `GET/PUT/PATCH/DELETE /workflows/:id`, `GET /variables`.
-6. **Data.** `workflow`; `workflow_version` (join for `published_version`).
-7. **Dependencies.** F3 (every read/save returns `validation`), F4.
-8. **Failures.** Concurrent edit → `409 "This workflow changed elsewhere — reload…"` (optimistic lock on `row_version`).
-   Missing name → 400. Unknown/archived id → 404. Enabling unpublished → 400. The editor warns before leaving with unsaved changes.
-9. **Security.** None (no auth; any caller can edit or archive).
+- **Purpose.** Keep a list of playbooks, each for one kind of customer request.
+- **Business logic.** Create (unique default name "Untitled workflow", "Untitled workflow 2", …), open, rename, edit the
+  draft, toggle **Enabled**, delete. Delete is an **archive**: the row stays, `enabled` turns off and running chats
+  finish on their own graph copy. The list shows step count, "live" / "never published" and "unpublished changes".
+- **Flow.** `/workflows` → **New workflow** (`POST /workflows`, starts with an empty "Start" group) → editor
+  `/workflows/[id]` → **Save changes** (`PUT /workflows/:id` with `row_version`) → **Publish** (F5).
+- **Components.** `web/src/app/workflows/page.tsx`, `web/src/app/workflows/[id]/page.tsx`;
+  `server/src/workflows/workflows.controller.ts`, `workflows.service.ts`.
+- **APIs.** `GET/POST /workflows`, `GET/PUT/PATCH/DELETE /workflows/:id`, `GET /variables`.
+- **Data.** `workflow`.
+- **Dependencies.** F4 (every read and save returns `validation`), F5, F7 (enabled action keys).
+- **Failure scenarios.**
+  - Saving over a newer version → `409` "This workflow changed elsewhere — reload" (`row_version` mismatch).
+  - Empty name → `400`. Enabling a never-published workflow → `400` (UI also disables the toggle).
+  - Unsaved canvas edits → browser "leave page?" prompt (`beforeunload`).
+  - ⚠ Risk: a name that clashes with another active workflow hits the unique index and surfaces as a generic `500`
+    (no mapping to a friendly error in `saveWorkflow`).
+  - `DELETE` returns `ok` even for an unknown id.
+- **Security.** Anyone who can reach the API can edit, publish or archive.
 
 ### F2 Canvas workflow editor
 
-1. **Purpose.** Draw a workflow as groups of blocks joined by arrows (Typebot-style, per code comments).
-2. **Business logic.** Block types (`web/src/lib/graph.ts#BLOCKS`):
+- **Purpose.** Draw a workflow as **groups** of **blocks** joined by **arrows**, Typebot-style.
+- **Business logic.**
+  - Block types: **AI step** (instruction, may mention `@actions`, optional Save response), **Text bubble** (fixed
+    message), **Input** (Text, Email, Number, Phone), **Condition** (rules) and **AI condition**.
+  - Blocks in a group run top to bottom; a group's end has one "then" output; each condition case has its own output.
+    One arrow per output (connecting again replaces it). Arrows can enter a group or a specific block.
+  - Arrows on a cycle are drawn dashed blue with "↺ max N"; selecting one lets you set **repeat at most N×** (1–100) and
+    **ask again**.
+  - The start group can't be deleted. Moving a block out of a group leaves an empty non-start group, which is removed.
+- **Flow / interactions.** Drag palette items onto a card (drop line shows the slot) or onto empty canvas (new group);
+  drag a block by its grip to reorder or move it; drag from an output dot to a card, block or empty canvas (creates a
+  group with an empty AI step); drag an arrow end to re-point it (dropping on nothing deletes it); Shift+drag box
+  select; Ctrl+C / V / D / A; Delete/Backspace removes selection; Ctrl+Z / Ctrl+Shift+Z undo/redo (graph only; text
+  fields keep their own undo); **Tidy up** lays groups in columns by distance from the start; zoom, fit and minimap.
+- **Components.** `web/src/components/canvas/canvas.tsx` (React Flow wiring, drag, connect, keyboard),
+  `group-card.tsx` (group node, blocks, rules UI, add-block menu), `edge.tsx` (arrow with loop settings),
+  `context.ts`; edit helpers in `web/src/lib/graph.ts` (`connect`, `reconnect`, `moveItemTo`, `pasteGroups`, `tidy`,
+  `loopEdges`, …); undo stacks in `workflows/[id]/page.tsx`.
+- **APIs.** None directly; the page saves the whole graph with `PUT /workflows/:id`.
+- **Data.** `workflow.graph` (JSON: `start`, `groups[] {id,title,x,y,items[]}`, `edges[] {from,to,maxVisits?,fresh?}`,
+  `variables[]`). Shape is defined twice: `server/src/types.ts` and `web/src/lib/graph.ts`.
+- **Dependencies.** F3 (text and variables), F4 (step counter "N of 50" mirrors the server limit), F19.
+- **Failure scenarios.** Client-side only; structural problems are reported by F4 after saving. Pasted groups get fresh
+  ids for groups, items, cases and arrows.
+- **Security.** n/a.
+- **Note.** `Canvas` accepts `readOnly` and `highlight` props, but no page passes them (Legacy, §11.6).
 
-   | Palette section | Block | Stored as | Runtime meaning |
-   |---|---|---|---|
-   | Bubbles | Text | `bubble` | Fixed message sent word for word (F19). |
-   | Inputs | Text / Email / Number / Phone | `input` (`saveAs`, `format`, optional `retry` text) | Ask and save the answer in a variable (F15). |
-   | Logic | Condition | `condition` with `mode: 'rules'` | Branch by rules (F16). |
-   | Logic | AI condition | `condition` (mode `ai`) | The AI picks a case (F16). |
-   | AI | AI step | `step` (`content`, optional `save`) | AI instruction; may mention `@actions` and save their response (F18). |
+### F3 Block text editor and variables
 
-   Text uses rich inline content: plain text, `@action` mentions and `{{variable}}` chips (`types.ts#Inline`).
-   A group's last block leads out through **one** arrow; each condition case has its own output. Arrows that close a loop
-   show a repeat limit and an "ask again" checkbox (F17).
-3. **Flow / interactions** (`canvas.tsx`, `group-card.tsx`, `edge.tsx`):
-   - Drag a palette item onto a card (insert at the drop line) or onto empty canvas (new group).
-   - Drag a block by its grip to reorder, move to another group, or make a new group; a group left empty is removed (not the Start group).
-   - Drag from an output dot to a handle, card or block; dropping on empty canvas creates a new group with an AI step and connects it.
-   - Drag either end of an arrow to re-point it; dropping it on nothing deletes it. One arrow per output (new replaces old).
-   - Delete/Backspace removes selected groups/arrows; Shift-drag box-selects; Ctrl+C/V/D/A copy, paste, duplicate, select all (fresh ids).
-   - Undo/redo (Ctrl+Z / Ctrl+Shift+Z) at page level; text fields keep their own undo.
-   - Zoom, fit, minimap, and **Tidy up** (columns by distance from Start).
-   - **Variables** panel: declare the workflow's own variables (lowercase, digits, `_`); inputs fill them, rules compare them, any text can show them.
-   - Step counter "N of 50 steps" (conditions don't count).
-4. **Components.** `web/src/components/canvas/{canvas,group-card,edge,context,save-response,var-select}.tsx`, `web/src/components/step-editor.tsx` (TipTap with `@` and `{{` suggestion menus), `web/src/lib/graph.ts` (pure edit helpers), `web/src/lib/inline.ts`.
-5. **APIs.** Loads `GET /workflows/:id`, `GET /actions` (for `@` menu), `GET /variables` (built-ins); `GET /actions/:key/sample` for Save response.
-6. **Data.** `workflow.graph` (`WorkflowGraph`: `start`, `groups[{id,title,x,y,items}]`, `edges[{from,to,maxVisits,fresh}]`, `variables[]`).
-7. **Dependencies.** F6 (action list), F3 (server re-validates on save).
-8. **Failures.** Editing is local until Save/Publish; validation issues appear after save (F3).
-9. **Security.** None.
+- **Purpose.** Write block text with inline **`@action`** chips (which tool a step may call) and **`{{variable}}`**
+  chips (values shown at run time).
+- **Business logic.**
+  - Typing `@` lists **enabled** actions; `{{` lists variables. A chip for an unknown or disabled action is shown in
+    the warning colour. Text bubbles and input prompts offer no actions.
+  - Built-in variables: `customer.name`, `customer.email`, `today` (`server/src/types.ts#VARIABLES`, served by
+    `GET /variables`, filled by `runner/context.ts#baseVars`).
+  - Workflow variables: lowercase names (`^[a-z][a-z0-9_]*$`) kept in `graph.variables`; added from the palette's
+    Variables box or "+ New variable…" in any picker (`toVarName` normalises the text).
+  - Stored as `Inline[]` (`{t:'text'|'action'|'var'}`); TipTap JSON never reaches the server.
+- **Components.** `web/src/components/step-editor.tsx` (TipTap + Mention, popup portalled to `<body>`),
+  `canvas/var-select.tsx`, `web/src/lib/inline.ts`, `components/inline-text.tsx` (read-only rendering).
+- **APIs.** `GET /actions`, `GET /variables`.
+- **Data.** Inside `workflow.graph`.
+- **Dependencies.** F7 for the action list; F4 checks mentions.
+- **Failure scenarios.** Unknown action or variable → flagged by F4 ("`@x doesn't exist or is disabled`",
+  "Unknown variable `{{x}}`"). A declared variable with no value yet renders as empty text to the customer
+  (`engine.ts#shownVars`).
+- **Note.** `StepEditor`'s `onEnter`, `onBackspaceEmpty` and `onCondition` props are never passed (Legacy).
 
-### F3 Workflow validation
+### F4 Workflow validation
 
-1. **Purpose.** Stop a workflow that can't run correctly from being published.
-2. **Business logic** (`server/src/workflows/graph.ts#validateGraph`). Issues are human-readable strings. Checks:
-   - at least one group; every group has a block; unique item ids;
-   - AI steps not empty; Save response needs an `@action` in the step, a path and a variable for each field, no variable saved twice;
-   - bubbles not empty and can't contain `@actions`;
-   - inputs have a variable and a known format;
-   - conditions start with If, Else is last; AI cases need text; rule cases need at least one rule with a variable, a known operator, and a chosen compare variable if `ref` is used;
-   - start group exists; arrows point to existing groups/blocks/cases; one arrow per output; repeat limit 1–100;
-   - every group reachable from Start;
-   - every cycle (Tarjan SCC, `cycles()`) has at least one arrow with a repeat limit;
-   - at most 50 non-condition blocks;
-   - every `@action` exists and is enabled; every `{{variable}}` is built-in (`customer.name`, `customer.email`, `today`) or declared; declared names are lowercase/digits/`_`.
-3. **Flow.** Run on every `GET`, `POST`, `PUT` of a workflow; the result (`validation.issues`, `action_keys`, `step_count`) is returned and the counts are stored. Publish refuses if issues exist.
-4. **Components.** `graph.ts`, called from `workflows.service.ts#check`.
-5. **APIs.** Embedded in workflow responses; publish failure returns `400 { message: 'Fix these before publishing', issues }`.
-6. **Data.** Reads `action.enabled`.
-7. **Dependencies.** F6.
-8. **Failures.** Validation never blocks saving a draft, only publishing.
-9. **Security.** N/A.
+- **Purpose.** Decide whether a draft can be published, and tell the author what to fix.
+- **Business logic** (`server/src/workflows/graph.ts#validateGraph`):
+  - at least one group; no empty groups; unique item ids; no empty AI steps or bubbles; bubbles can't contain `@actions`;
+  - Save response needs an `@action` in the step, a path and a variable per row, no variable saved twice;
+  - inputs need a variable and a known format;
+  - conditions start with If, Else is last; AI cases need text; rules cases need at least one rule with a variable,
+    a known operator and (when comparing with a variable) that variable;
+  - start group exists; arrows point at existing groups, blocks and cases; one arrow per output; repeat limits 1–100;
+  - every group reachable from the start; every cycle (Tarjan SCC, `cycles`) has a repeat limit on at least one arrow;
+  - at most 50 blocks (conditions don't count; `graphStepCount`);
+  - every `@action` exists and is enabled; every variable is built-in or declared; variable names are well formed.
+- **Flow.** Run on every `GET`, `PUT` and `POST /workflows`; `PUT` saves even with issues; `POST …/publish` refuses with
+  `400 {message:'Fix these before publishing', issues[]}`. The editor shows the list when there are no unsaved edits.
+- **Components.** `graph.ts`, `workflows.service.ts#check`, editor notices in `workflows/[id]/page.tsx`.
+- **Data.** Writes `workflow.action_keys` and `step_count` from the result.
+- **Dependencies.** F7 (enabled keys), `config.maxVisits`, `config.maxGraphSteps`.
+- **Failure scenarios.** An action disabled after publishing does not unpublish the workflow; at run time the engine
+  rejects the call ("`x is disabled`").
+- **Gaps.** Validation does not require an Else on rules conditions (see F17 risk), and an arrow inside a cycle without
+  its own limit is accepted as long as another arrow of that cycle has one.
 
-### F4 Publishing and versioning
+### F5 Draft and published copy
 
-1. **Purpose.** Freeze a tested draft so live conversations use a fixed version while authors keep editing.
-2. **Business logic.** Publish creates `workflow_version` N+1 with the name, when-to-use, graph, action keys and the
-   built **agent map** (F5); sets it as `published_version_id`, clears `has_unpublished_changes` and **enables** the
-   workflow. Runs pin `workflow_version_id`, so running conversations keep their version.
-3. **Flow.** Editor **Publish** → saves the draft first if dirty → `POST /workflows/:id/publish` → transaction inserts the version and updates the workflow.
-4. **Components.** `workflows.service.ts#publishWorkflow`, `engine/map.ts#buildMap`.
-5. **APIs.** `POST /workflows/:id/publish`.
-6. **Data.** `workflow_version` (`agent_map`), `workflow`.
-7. **Dependencies.** F3, F5, F6 (`needsApproval()` marks tools that need approval in the map).
-8. **Failures.** Validation issues → 400 with `issues`. Version number is computed inside the transaction; ⚠ Unverified: two simultaneous publishes could race on `max(version)+1` (the unique `(workflow_id, version)` constraint would reject one).
-9. **Security.** None.
+- **Purpose.** Let authors edit freely without changing live chats until they publish.
+- **Business logic.** One row holds both copies. **Publish** copies `graph`, `when_to_use`, `action_keys` to the
+  `published_*` columns, sets `published_at`, `enabled = true`, `has_unpublished_changes = false`. There is **no version
+  history** (`0017` dropped `workflow_version`). New runs copy `published_graph` into `workflow_run.graph`, so running
+  chats keep the graph they started on. Routing (F13) uses `published_when_to_use`.
+- **Flow.** Editor **Publish** → if there are unsaved edits, `PUT` first → `POST /workflows/:id/publish`.
+- **Components.** `workflows.service.ts#publishWorkflow`, `wf-tools.ts#startAgentRun`.
+- **APIs.** `POST /workflows/:id/publish`.
+- **Data.** `workflow.published_*`, `workflow_run.graph`.
+- **Dependencies.** F4 must report no issues.
+- **Failure scenarios.** Validation issues → `400` with the list. Publish does not check `row_version`, so it publishes
+  whatever draft is stored at that moment.
+- **Note.** The workflow agent is keyed on a hash of the run's graph, so a new publish gets a new agent (F14).
 
-### F5 Workflow map compiler
+### F6 Workflow map compiler
 
-1. **Purpose.** Give each workflow agent a compact, read-only plan of the whole workflow.
-2. **Business logic** (`engine/map.ts#buildMap`). Numbers groups in run order (breadth-first from Start; unreachable groups last, flagged), numbers items `group.item` (e.g. `2.1`), lists each block's type, text, collected variable/format, tools (with "needs approval"), save mappings, condition cases and where each goes, group exits and loops (max visits, "ask again"/"keep answers"). Also renders it as prompt text (`mapText`).
-3. **Flow.** Built at publish (stored in `workflow_version.agent_map`) **and** rebuilt from the graph when a workflow agent is first created for a version (`agents.ts#workflowAgent`), so format changes reach older versions.
-4. **Components.** `engine/map.ts`; `agents.ts`; `dev.controller.ts` (`GET /dev/workflows/:id/map`).
-5. **APIs.** Dev only: `GET /dev/workflows/:id/map`.
-6. **Data.** `workflow_version.graph`, `workflow_version.agent_map`, `action.requires_approval`.
-7. **Dependencies.** F4, F13.
-8. **Failures.** A version with no graph gets a placeholder map ("follow the current step card").
-9. **Security.** N/A. ⚠ Risk: the stored `agent_map` is only read by the dev endpoint; the runtime uses a rebuilt map — two sources of the same data (§11).
+- **Purpose.** Give the workflow agent the whole workflow as numbered, read-only prompt text so it can plan, while the
+  server still decides every move.
+- **Business logic** (`server/src/engine/map.ts#buildMap`, pure). Groups are numbered breadth-first from the start
+  (unreachable ones last, marked "(not reachable)"); items get refs like `2.1` and their `[id]`. Each line describes the
+  block: AI step text, its tools (with "(needs approval)") and saves; bubble text; input variable and format; condition
+  mode and each case with where it goes. Loops are listed with max visits and "ask again" / "keep answers".
+- **Flow.** Built lazily when a workflow agent is created for a run's graph (`agents.ts#workflowAgent`), or on demand
+  by `GET /dev/workflows/:id/map`. Not stored (`0016` dropped `agent_map`).
+- **Dependencies.** `workflows.service.ts#needsApproval` (live `action.requires_approval`), `workflows/inline.ts`.
+- **Failure scenarios.** None at build time. ⚠ Risk: the "(needs approval)" hint and `when_to_use` are baked into the
+  cached agent; changing an action's approval flag later does not refresh the prompt (the engine still enforces the live
+  flag, so only the hint is stale).
+- **Tests.** `server/test/map.test.ts`.
 
-### F6 Actions (tool) catalog
+### F7 Actions (tool) catalog
 
-1. **Purpose.** Manage the tools workflows can call with `@key`.
-2. **Business logic.**
-   - Sources shown: `builtin` (`request_approval` → opens an evidence review; `escalate_to_human` → ends the run as escalated), `viasocket_flow` (built in viaSocket), `viasocket` (legacy, F34).
-   - **Enabled** switch: disabled actions fail validation and are rejected at run time.
-   - **Needs approval** switch (non-built-ins): the action waits for a teammate before it runs (F20). New viaSocket tools start with it **on**.
-   - Rename (`new_key`) only if no workflow or published version mentions the key; key format enforced.
-   - Name/description edits set `details_edited`, so later viaSocket updates don't overwrite them.
-   - Delete only for viaSocket sources, and only if no active workflow uses the key.
-3. **Flow.** `/actions` lists all actions; toggles call `PATCH /actions/:key`; pencil opens the Tool dialog (F7); trash calls `DELETE /actions/:key`.
-4. **Components.** `server/src/actions/actions.controller.ts`; `web/src/app/actions/page.tsx`; `web/src/components/viasocket-panel.tsx`.
-5. **APIs.** `GET /actions`, `GET /actions/:key`, `PATCH /actions/:key`, `DELETE /actions/:key`, `GET /actions/:key/sample`, `POST /actions/from-flow`.
-6. **Data.** `action`; `action_run` (sample).
-7. **Dependencies.** F7, F3, F14.
-8. **Failures.** Bad key format, duplicate key, key in use, empty name/description → 400 with a readable message. Unknown key → 404.
-9. **Security.** None. ⚠ Risk: `via_flow_url` is treated "like a credential" (migration 0005 comment) but `GET /actions` returns full rows, including it, to any caller.
+- **Purpose.** The tools workflows can mention with `@key`, and the switches that govern them.
+- **Business logic.**
+  - Two sources: `builtin` (`request_approval`, `escalate_to_human`) and `viasocket_flow` (built in viaSocket, F8).
+  - Per action: **Enabled** (all), **Needs approval** (viaSocket tools only in the UI), edit and delete (viaSocket only).
+  - Rename (`new_key`) is allowed only while no active workflow mentions the key in its draft **or** published copy.
+  - Name and description are required when given; editing them sets `details_edited` so later viaSocket updates don't
+    overwrite them.
+  - Delete is refused while a workflow's **draft** mentions the key; only `viasocket_flow` rows can be deleted.
+- **Components.** `web/src/app/actions/page.tsx`, `components/viasocket-panel.tsx#ToolDialog`;
+  `server/src/actions/actions.controller.ts`.
+- **APIs.** `GET /actions`, `GET /actions/:key`, `GET /actions/:key/sample`, `PATCH /actions/:key`,
+  `DELETE /actions/:key`, `POST /actions/from-flow`.
+- **Data.** `action`; `action_run` (for samples).
+- **Dependencies.** F8, F4 (enabled keys), F15 (engine reads `enabled`, `requires_approval`, `input_schema`).
+- **Failure scenarios.** Bad key format, duplicate key, key in use → `400` with a readable message.
+  ⚠ Risk: delete checks only the draft's `action_keys`, not `published_action_keys`, so a tool used only by the live copy
+  can be deleted; live calls then fail with "`x is disabled`".
+- **Security.** `GET /actions` returns `select *`, including `via_flow_url`, which the code itself calls a credential
+  ("the URL is the credential", `viasocket.ts`).
 
-### F7 viaSocket tool builder integration
+### F8 viaSocket tool builder integration
 
-1. **Purpose.** Build tools (app integrations, HTTP flows) in viaSocket's own builder instead of in this app.
-2. **Business logic.** The app keeps no app connections of its own; connections are made inside the builder. When a tool
-   is published/updated/paused/deleted in the builder, its `openaiToolJson` (or `mcpToolJson`, or sample payload keys)
-   becomes the action's input schema and its run URL is stored.
-   - **published/updated** → upsert action (new key derived from the tool name and made unique; `requires_approval = true`, `kind = 'write'`).
-   - **paused** → disable.
-   - **deleted** → delete the action, or only disable it if an active workflow uses it.
-3. **Flow.**
+- **Purpose.** Create tools without writing code: viaSocket's own builder is embedded; each published flow becomes an action.
+- **Business logic.**
+  - The server signs an HS256 JWT `{org_id, project_id, user_id, unique_identifier}` with `VIASOCKET_EMBED_SECRET`
+    (`viasocket.ts#builderToken`). App connections live inside viaSocket; this app stores none.
+  - The tool dialog mounts the builder inline: **New tool** opens straight on "Add New Tool" (`showEnabled: false`);
+    the pencil reopens the tool's flow (except whole-app tools with `action_name` + `instructions` inputs, which live on
+    the builder's home screen).
+  - The builder emits `flow` events; `published`, `updated`, `paused`, `deleted`/`delete` with a webhook URL are
+    posted to `POST /actions/from-flow`. Drafts are ignored.
+  - From-flow: **new** flow → unique `@key` from the tool name (`freeKey`), `input_schema` from `openaiToolJson`
+    (fallback: MCP schema, then sample payload keys), **Needs approval on**. **Update** → schema and URL always follow;
+    name and description only until edited here. **Paused** → disabled. **Deleted** → disabled if a draft uses it,
+    otherwise removed. Details typed in the dialog before going live are saved right after the first publish event.
+- **Flow.**
 
 ```mermaid
 sequenceDiagram
-  participant A as Author (Actions page)
-  participant W as web ToolDialog
-  participant S as server
-  participant V as viaSocket embed
-  A->>W: New tool / Edit (pencil)
-  W->>S: GET /integrations/builder-token
-  S-->>W: HS256 token {org_id, project_id, user_id, unique_identifier}
-  W->>V: load embed script, viaSocket.mount({embedToken, open:{flowId}})
-  A->>V: build flow, Go live
-  V-->>W: 'flow' event {id, action, webhookurl, openaiToolJson,...}
-  W->>S: POST /actions/from-flow (event)
-  S-->>W: action row (@key)
+  participant U as Tool author
+  participant W as Tool dialog (web)
+  participant API as API
+  participant VS as viaSocket embed
+  U->>W: Actions → New tool
+  W->>API: GET /integrations/builder-token
+  API-->>W: signed token
+  W->>VS: load prod-embedcomponent.js, mount inline
+  U->>VS: build tool, Go live
+  VS-->>W: flow event {action:'published', webhookurl, openaiToolJson}
+  W->>API: POST /actions/from-flow
+  API-->>W: action (@key, needs approval on)
   opt details typed before going live
-    W->>S: PATCH /actions/:key {new_key, name, description, requires_approval, enabled}
+    W->>API: PATCH /actions/:key
   end
 ```
 
-4. **Components.** `web/src/components/viasocket-panel.tsx#ToolDialog`; `server/src/integrations/integrations.controller.ts`, `viasocket.ts#builderToken`; `actions.controller.ts#fromFlow`.
-5. **APIs / integrations.** `GET /integrations/builder-token`; `POST /actions/from-flow`; external: `https://embed.viasocket.com/prod-embedcomponent.js`, flow URLs `https://flow.sokt.io/func/<id>`.
-6. **Data.** `action.via_flow_id`, `via_flow_url`, `input_schema`, `details_edited`.
-7. **Dependencies.** `VIASOCKET_*` env vars; F6.
-8. **Failures.** Missing viaSocket env → 400 "viaSocket is not configured". Event without a valid flow URL → 400 "not a viaSocket flow event". Script load failure shown in the dialog. Draft events are ignored.
-9. **Security.** Token signed server-side with `VIASOCKET_EMBED_SECRET`. ⚠ Risk: `POST /actions/from-flow` is unauthenticated: anyone can create/overwrite an action pointing to any `flow.sokt.io` URL (the URL pattern is the only check).
+- **Components.** `web/src/components/viasocket-panel.tsx`, `server/src/integrations/viasocket.ts`,
+  `integrations.controller.ts`, `actions/actions.controller.ts#fromFlow`.
+- **APIs and integrations.** `GET /integrations/builder-token`, `POST /actions/from-flow`;
+  `https://embed.viasocket.com/prod-embedcomponent.js`.
+- **Data.** `action.via_flow_id`, `via_flow_url`, `details_edited`.
+- **Failure scenarios.** Missing secret → `400` "viaSocket is not configured"; script load failure → message in the
+  dialog; a from-flow body without an id or a `https://flow.sokt.io/func/<id>` URL → `400`.
+- **Security.** ⚠ Risk: `POST /actions/from-flow` is unauthenticated, so any caller can register or overwrite a tool
+  (the URL pattern check limits targets to viaSocket flow URLs). ⚠ Unverified: viaSocket event payload shapes are taken
+  from how the code reads them.
 
-### F8 Action execution and idempotency
+### F9 Action execution and idempotency
 
-1. **Purpose.** Run a tool exactly once per step visit, even across retries and restarts.
-2. **Business logic** (`actions/execute.ts#executeAction`).
-   - Idempotency key = `<runId>:<nodeId>:<visit>`; `visit` grows each time a loop jumps back (`engine.ts#visitOf`), so a re-run in a loop runs again, but a repeat within one visit doesn't.
-   - Inserts `action_run` (`on conflict do nothing`); a stored success is returned without calling the tool; a stored failure is retried with possibly corrected args.
-   - The call happens inside a transaction holding a `FOR UPDATE` lock on the `action_run` row.
-   - Runner by source: `viasocket_flow` → `runFlow` (POST JSON, 60 s timeout); `viasocket` → legacy `runViaSocket`; anything else → error "has no runner".
-   - **Failure detection** (`viasocket.ts#flowError`): HTTP ≥ 400, or HTTP 200 with `success: false`, `status/statusCode ≥ 400`, or a truthy `error`.
-   - Records `subject_ref` and `amount_minor` from the action's `subject_field` / `amount_field`.
-3. **Flow.** Called by `call_action` (mode `auto`) and by an approved decision or retry (mode `approved`, with `approval_task_id`).
-4. **Components.** `execute.ts`, `integrations/viasocket.ts`, `integrations/template.ts`.
-5. **APIs / integrations.** viaSocket flow URLs.
-6. **Data.** `action_run`.
-7. **Dependencies.** F6/F7 (action row), F14, F20.
-8. **Failures.** Errors are stored on `action_run.error` and returned as `{ ok:false }`; the tool tells the agent to fix args or hand off (auto mode) or marks the run `failed` (approved mode).
-9. **Security.** Flow URL format re-checked before POST. ⚠ Risk: the HTTP call (up to 60 s) runs while a pooled DB connection holds a transaction and row lock; the pool has 10 connections.
+- **Purpose.** Run a tool for a workflow step **exactly once per step visit**, even across retries and restarts.
+- **Business logic** (`server/src/actions/execute.ts#executeAction`).
+  - Idempotency key `<runId>:<nodeId>:<visit>`; `visit` grows with each loop-back (`engine.ts#visitOf`), so a step
+    re-run by a loop gets a fresh key.
+  - Insert `action_run` (`on conflict do nothing`) → if it already **succeeded**, return the stored result; if it
+    **failed**, overwrite the args (a retry may fix them) and run again.
+  - The call runs inside a transaction holding `select … for update` on the row; success stores `result`, failure stores
+    `error`. Only `viasocket_flow` actions have a runner.
+  - `runFlow` POSTs the args as JSON (60 s timeout) and treats as failure: HTTP ≥ 400, or a 200 body with
+    `success:false`, `status/statusCode ≥ 400` or a truthy `error` (`flowError`).
+- **Components.** `execute.ts`, `integrations/viasocket.ts`; callers `wf-tools.ts#wfCallAction` (mode `auto`) and
+  `#runApproved` (mode `approved`).
+- **Data.** `action_run`.
+- **Failure scenarios.** Tool failure in auto mode → the tool result is `ok:false` with fix "Check the arguments and try
+  once more, or hand off" (the agent may retry on the same key). Failure after approval → run `failed` (F21, F23).
+  ⚠ Risk: the external HTTP call runs while a DB transaction and pool connection (pool size 10) are held, for up to 60 s.
+- **Security.** Flow URLs act as bearer credentials.
 
-### F9 Conversations and messages
+### F10 Conversations and messages
 
-1. **Purpose.** Hold the chat that a workflow runs in; stands in for a Ticket0 ticket.
-2. **Business logic.** Message roles: `customer` (wakes the agents), `bot` (agent reply), `team` (teammate; visible to the customer and to agents as `[Teammate] …`, but **does not** wake the run), `system` (notes for teammates; hidden from agents and widget). Channel: `playground` or `widget`.
-3. **Flow.** Customer message → stored → `enqueue(conversation, 'customer_message')` (F11). Team message → stored only.
-4. **Components.** `server/src/playground/conversations.ts#postCustomerMessage`, `playground.controller.ts`, `widget.controller.ts`.
-5. **APIs.** `GET/POST /conversations`, `GET /conversations/:id` (one poll returns conversation, messages, runs, events (latest 500), approvals, action runs of the latest run, AI usage), `POST /conversations/:id/messages`, `POST /conversations/:id/team-messages`.
-6. **Data.** `conversation`, `message`, `attachment`, plus joined run data.
-7. **Dependencies.** F11.
-8. **Failures.** Empty message → 400. If enqueuing fails, a system message "Error: …" is added.
-9. **Security.** None; any caller can read any conversation by id.
+- **Purpose.** The chat a workflow runs in (a stand-in for a Ticket0 ticket).
+- **Business logic.**
+  - Message roles: `customer`, `bot` (agent replies), `team` (a teammate writing in the chat), `system` (notes such as
+    "Supervisor: started a workflow…", errors). System notes are hidden from the widget and from the agents' history.
+  - A customer message is stored, then queued in the inbox (F12). A team message is stored only: it reaches the
+    customer and appears in the agents' history as `[Teammate] …`, but it **does not wake the run**.
+  - Playground conversations default to "Alex Kim / alex@example.com".
+- **Components.** `server/src/playground/playground.controller.ts`, `conversations.ts#postCustomerMessage`,
+  `widget.controller.ts`; `runner/context.ts#loadTranscript`.
+- **APIs.** `GET/POST /conversations`, `GET /conversations/:id` (everything the playground shows in one poll),
+  `POST /conversations/:id/messages`, `POST /conversations/:id/team-messages`; widget routes in F29.
+- **Data.** `conversation`, `message`.
+- **Failure scenarios.** Empty message → `400`. An enqueue error is written as a system message "Error: …".
+- **Security.** Conversation ids act as access tokens; no ownership checks.
 
-### F10 Attachments
+### F11 Attachments
 
-1. **Purpose.** Let customers send images (e.g., proof of damage).
-2. **Business logic.** Upload as base64 JSON (1 byte – 5 MB), SHA-256 recorded, bytes written to `UPLOADS_DIR/<attachment id>`; served with its stored MIME type. Agents only see "[N attachment(s)]" in the transcript, not the image.
-3. **Flow.** Web reads the file → `POST /attachments` → id → message with `attachment_ids`.
-4. **Components.** `playground.controller.ts#upload`, `#file`; Playground and widget composers (image picker, `accept="image/*"`).
-5. **APIs.** `POST /attachments`, `GET /attachments/:id`.
-6. **Data.** `attachment`, `message.attachment_ids`.
-7. **Dependencies.** Local disk.
-8. **Failures.** Size out of range → 400; unknown id → 404.
-9. **Security.** ⚠ Risk: no auth, no check that the uploader owns the conversation, and the MIME type is client-supplied and echoed back as `Content-Type`.
+- **Purpose.** Let customers send images (for example evidence of damage).
+- **Business logic.** The browser reads the file as base64 and `POST /attachments` stores it on local disk
+  (`UPLOADS_DIR`, file name = attachment id) with size and SHA-256; 1 byte to 5 MB. The message references the ids.
+  `GET /attachments/:id` streams the file with its MIME type. Playground and widget show images inline.
+- **Components.** `playground.controller.ts#upload`, `#file`; upload code in `playground/page.tsx` and `embed/page.tsx`.
+- **Data.** `attachment`, `message.attachment_ids`.
+- **Dependencies.** F10.
+- **Failure scenarios.** Size out of range → `400`; unknown conversation id → database FK error (generic `500`).
+- **Status: Partial.** Agents see only "`[N attachment(s)]`" in the history (`agents.ts#history`): images never reach
+  the model. Evidence approval tasks don't carry attachment ids, so the approval card's photo strip stays empty (F21).
+- **Security.** ⚠ Risk: any caller can upload to any conversation id and read any attachment by id.
 
-### F11 Per-conversation event inbox
+### F12 Per-conversation event inbox
 
-1. **Purpose.** Serialize everything that can make an agent act on a conversation, so turns never overlap.
-2. **Business logic** (`agents/inbox.ts`).
-   - Event kinds: `customer_message`, `approval_decided`, `control`, `timer`.
-   - `enqueue` inserts a row and "kicks" a drain loop for that conversation; only one loop per conversation per process (`draining` set).
-   - `drain` claims the oldest pending event (`FOR UPDATE SKIP LOCKED`), dispatches it, marks it `done` or `failed` (a failure also adds a system message "Error: …").
-   - Merging and skipping (F24).
-   - **Boot recovery** (`startInbox`): events left `working` go back to `pending`, and every conversation with pending events is kicked. Then the sweeper starts (every 30 s, F21).
-3. **Flow.**
+- **Purpose.** Serialise everything that can move a chat forward so only one turn runs per conversation at a time,
+  and survive restarts.
+- **Business logic** (`server/src/agents/inbox.ts`).
+  - Every trigger becomes a `ticket_event`: `customer_message`, `approval_decided`, `control`, `timer`.
+  - `enqueue` inserts and **kicks** a drain loop; one loop per conversation (in-memory `draining` set). The loop claims
+    the oldest pending event (`for update skip locked`, status `working`), runs it, marks it `done` or `failed`.
+  - **Merging:** a customer message with a newer pending customer message is skipped ("merged into a later message");
+    after a turn, pending messages the turn already read are closed ("answered in an earlier turn"). See F25.
+  - **Boot:** `working` events go back to `pending` and every conversation with pending events is kicked; the
+    **sweeper** starts (every 30 s, F22).
+- **Flow.**
 
 ```mermaid
-flowchart LR
-  E1[POST messages] --> Q[(ticket_event pending)]
-  E2[POST approvals/:id/decide] --> Q
-  E3[POST runs/:id/:op] --> Q
-  E4[sweeper every 30 s] --> Q
-  Q --> D{drain loop<br/>one per conversation}
-  D -->|customer_message| C[customerTurn]
-  D -->|approval_decided| A[approvalTurn]
-  D -->|control| K[controlTurn]
-  D -->|timer| T[timerTurn]
+sequenceDiagram
+  participant API as Controller
+  participant IN as Inbox
+  participant DB as ticket_event
+  participant AG as agents.ts
+  API->>DB: insert (pending)
+  API->>IN: kick(conversation)
+  loop until no pending event
+    IN->>DB: claim oldest pending (skip locked) → working
+    alt customer_message with a newer one pending
+      IN->>DB: done ("merged into a later message")
+    else
+      IN->>AG: customerTurn / approvalTurn / controlTurn / timerTurn
+      IN->>DB: done (or failed + system "Error: …" message)
+      IN->>DB: close pending messages already read this turn
+    end
+  end
 ```
 
-4. **Components.** `inbox.ts`; dispatch targets in `agents.ts`.
-5. **APIs.** Indirect (all producers above).
-6. **Data.** `ticket_event`.
-7. **Dependencies.** F12, F20, F21, F22.
-8. **Failures.** Exceptions are caught per event. A crash mid-turn leaves `working` rows that are retried at next boot (the turn may then run twice; tools are idempotent but replies could be duplicated — ⚠ Unverified in practice).
-9. **Security.** N/A. ⚠ Risk: "one drain per conversation" is an in-memory `Set`; with more than one API instance, two instances could process different events of the same conversation at once (§11).
+- **Data.** `ticket_event`.
+- **Dependencies.** F13–F14 (turn handlers), F22.
+- **Failure scenarios.** A handler throws → event `failed`, error stored, system message posted; the loop continues
+  with the next event. A crash mid-turn → event re-run at boot (⚠ Unverified whether that can send a reply twice; tool
+  moves themselves are guarded by the engine and idempotency keys).
+- **Security.** n/a. ⚠ Risk: ordering relies on in-memory state (§11.2).
 
-### F12 Supervisor agent (routing)
+### F13 Supervisor agent
 
-1. **Purpose.** Read every customer message first and decide who handles it.
-2. **Business logic** (`agents.ts#customerTurn`, `prompts.ts#supervisorPrompt`). The supervisor gets the published
-   enabled workflows (id · name · when to use), the active run's current step and progress, and the last 20 messages.
-   It decides:
-
-   | Situation | Tool | Rule enforced in code |
-   |---|---|---|
-   | Message belongs to the active workflow / is not an answer / short off-topic question | `delegate_to_workflow` with intent `answer` · `not_an_answer` · `off_topic` (+ optional note) | Needs an active run; once per turn |
-   | No active workflow and one fits | `start_workflow` then delegate | Confidence ≥ 0.7; no active run; workflow published, enabled, not archived |
-   | Clearly different request covered by another workflow | `switch_workflow` then delegate | Confidence ≥ 0.8; target ≠ current |
-   | Customer asks for a person | `hand_off` | Ends the active run as escalated (if any) |
-   | Unsure (0.4–0.7) or nothing fits | Replies itself | (prompt rule) |
-
-   Before calling the model: if the conversation has **no active run and the last run was escalated**, the bot stays
-   silent (system note). If the active run is **paused**, the message is logged and a note says the bot replies after resume.
-3. **Flow.**
+- **Purpose.** Read every customer message and decide who answers: the active workflow, a new or different workflow,
+  a person, or itself.
+- **Business logic** (`agents.ts#customerTurn`, `prompts.ts#supervisorPrompt`).
+  - Before calling the model: if there is no active run and the last run was **escalated**, the bot stays quiet (system
+    note). If the active run is **paused**, the message is logged and the bot waits.
+  - The prompt lists published, enabled, non-archived workflows (`id · name · published when_to_use`) and the active
+    workflow's current step and progress. History = last 20 non-system messages.
+  - Tools: `start_workflow` (no active run; confidence ≥ 0.7, enforced server-side), `switch_workflow` (confidence
+    ≥ 0.8; cancels the active run and starts another), `delegate_to_workflow` (intent `answer` \| `not_an_answer` \|
+    `off_topic`, optional note; once per turn), `hand_off` (escalates the active run, posts a note).
+  - Prompt rules: unsure (0.4–0.7) → ask one clarifying question; nothing fits → answer briefly without inventing
+    facts; after a delegation that delivered, write nothing more; after a **yield**, switch or reply itself.
+  - If the supervisor replied itself, its text is sent (unless a newer customer message arrived, F25).
+  - `maxSteps: 6`.
+- **Components.** `agents.ts` (`supervisorTools`, `supervisor`, `customerTurn`), `prompts.ts`, `wf-tools.ts#wfStart`,
+  `#wfSwitchWorkflow`, `#wfHandoff`.
+- **Data.** `workflow`, `workflow_run`, `message`, `run_event` (`supervisor_delegated`, `supervisor_replied`), `llm_usage`.
+- **Dependencies.** F12, F14, F24, F28, F30.
+- **Failure scenarios.** Tool rejections return `{ok:false, reason, fix}` to the model (low confidence, already
+  running, not published, no active run, already delegated). Missing model settings throw → event `failed` + system error.
+  ⚠ Risk: `hand_off` with **no** active run only writes a note; the next message is still answered by the bot.
+- **Main sequence (customer message, end to end):**
 
 ```mermaid
 sequenceDiagram
   participant C as Customer
-  participant API as POST /conversations/:id/messages
-  participant IB as Inbox
+  participant API as API
+  participant IN as Inbox
   participant SUP as Supervisor
-  participant WA as Workflow agent
+  participant WFA as Workflow agent
   participant T as wf_* tools + engine
   participant DB as Postgres
-  C->>API: message
-  API->>DB: insert message, ticket_event
-  API->>IB: kick
-  IB->>SUP: customerTurn (history, workflows, active step)
-  alt no active run, a workflow fits
-    SUP->>T: start_workflow(id, confidence ≥ 0.7)
-    T->>DB: insert workflow_run (engine=agent) at first block
+  C->>API: POST …/messages
+  API->>DB: message (customer) + ticket_event
+  API->>IN: kick
+  IN->>SUP: customerTurn (history, published workflows, active step)
+  alt no active run and a workflow fits
+    SUP->>T: start_workflow (confidence ≥ 0.7)
+    T->>DB: workflow_run (own graph copy, at first block)
   end
-  SUP->>WA: delegate_to_workflow(intent, note)
-  loop until it needs the customer (max 24 steps)
-    WA->>T: wf_save_input / wf_choose_case / call_action / wf_complete_step
-    T->>DB: load run, engine check, save run, run_event
-    T-->>WA: {ok, next step card, say[]} or {ok:false, reason, fix}
-  end
-  WA-->>SUP: reply text
-  SUP->>DB: deliver (bubble check) → bot message
-  SUP->>DB: run → waiting_customer with remind/expire times
-  IB->>DB: ticket_event done
+  SUP->>WFA: delegate_to_workflow(intent)
+  WFA->>T: wf_save_input / wf_choose_case / call_action / wf_complete_step …
+  T->>DB: facts, status, run_event, action_run
+  T-->>WFA: next step card + "say" bubbles
+  WFA-->>SUP: final text
+  SUP->>DB: deliver: bubble check, stale check → message (bot)
+  SUP->>DB: run → waiting_customer (+ reminder / expiry)
+  C->>API: poll GET …/conversations/:id
 ```
 
-4. **Components.** `agents.ts` (`supervisor`, `supervisorTools`, `customerTurn`), `prompts.ts`, `wf-tools.ts#wfStart`, `#wfSwitchWorkflow`, `#wfHandoff`.
-5. **APIs / integrations.** LLM via Mastra.
-6. **Data.** `workflow`, `workflow_run`, `message`, `run_event` (`customer_message`, `supervisor_delegated`, `supervisor_replied`), `llm_usage` (agent `supervisor`).
-7. **Dependencies.** F13, F11, F27, F29.
-8. **Failures.** Tool rejections return `{ ok:false, reason, fix }` for the model to follow. If the supervisor replies itself but the customer wrote again meanwhile, the reply is dropped (F24). Model/config errors bubble to the inbox → event `failed` + system "Error" message.
-9. **Security.** No auth. Confidence thresholds are self-reported by the model.
+### F14 Workflow agent
 
-### F13 Workflow agent
+- **Purpose.** Carry one workflow from its first block to the end, talking to the customer.
+- **Business logic** (`agents.ts#workflowAgent`, `#workflowTurn`, `prompts.ts#workflowPrompt`, `#turnContext`).
+  - One Mastra `Agent` per (workflow id, SHA-1 of the run's graph), cached in memory; instructions = base prompt +
+    rules + the workflow map (F6).
+  - Each turn adds: intent and supervisor note, the **current step card** (JSON from `engine.ts#stepCard`), progress
+    (collected variables), the current step's action argument specs, and pending bubbles.
+  - Tools: `wf_save_input`, `wf_choose_case`, `wf_complete_step`, `call_action`, `wf_handoff`, `wf_yield`.
+    `maxSteps: 24` (about one tool round per block).
+  - When there is no new customer message (after an approval or retry), a synthetic user line asks it to continue and
+    tell the customer what happened.
+  - After the turn: unless it yielded, `deliver` sends the reply (bubble check, F20; stale check, F25), then
+    `markWaiting` puts a `running` run into `waiting_customer` with reminder and expiry times.
+- **Components.** `agents.ts`, `prompts.ts`, `tools.ts`, `wf-tools.ts`.
+- **Data.** `workflow_run`, `run_event` (`agent_turn`, `agent_replied`), `message`, `llm_usage`.
+- **Dependencies.** F6, F15, F20, F25, F28.
+- **Failure scenarios.** Invalid moves are rejected with a reason and a fix and logged as `move_rejected`. A model
+  error throws out of the turn → inbox marks the event failed.
+  ⚠ Risk: the agent cache is never evicted, and the approval hints in the map are not refreshed (F6).
+- **Security.** The model never supplies the run id; it comes from the request context.
 
-1. **Purpose.** Carry one conversation through one workflow, block by block.
-2. **Business logic** (`agents.ts#workflowAgent`, `#workflowTurn`, `prompts.ts#workflowPrompt`, `#turnContext`).
-   - One Mastra `Agent` per published version, cached in memory; instructions = base voice rules + workflow rules + the map text.
-   - Each turn adds: intent (+ supervisor note), the **current step card** (JSON), progress (collected variables), action argument specs for the current step, and bubbles not yet sent.
-   - Tools: `wf_save_input`, `wf_choose_case`, `wf_complete_step`, `call_action`, `wf_handoff`, `wf_yield`.
-   - Keeps moving through blocks while it has what it needs; stops when it needs the customer. Its final text is the reply.
-   - `wf_yield` hands the turn back to the supervisor (once per turn) when the customer wants something the workflow doesn't cover.
-   - Turns with no new customer message (after an approval, a retry) get a synthetic user line asking it to continue and tell the customer what happened.
-   - After the turn: deliver the reply (F19/F24), then set the run to `waiting_customer` with reminder/expiry times (F21).
-3. **Flow.** See the sequence in F12.
-4. **Components.** `agents.ts`, `prompts.ts`, `tools.ts`, `wf-tools.ts`.
-5. **APIs.** LLM via Mastra.
-6. **Data.** `workflow_version`, `workflow_run`, `run_event` (`agent_turn`, `agent_replied`, `yielded`, `message_sent`), `llm_usage` (agent `workflow: <name>`).
-7. **Dependencies.** F5, F14, F27.
-8. **Failures.** Invalid moves are rejected and logged as `move_rejected` (for evals). ⚠ Risk: the per-version agent cache is never invalidated; flipping an action's "Needs approval" after the agent was built leaves the map text stale until restart (enforcement itself reads the live action row, so behaviour stays correct).
-9. **Security.** The model never supplies the run id.
+### F15 Step engine and `wf_*` tools
 
-### F14 Step engine and `wf_*` tools
+- **Purpose.** Make the server, not the model, the authority on what happens next.
+- **Business logic.**
+  - **Engine (pure).** `graphFlow` turns the canvas into a flow: first block, next block (rest of the group, then the
+    group's arrow), case targets (an unconnected case falls through to the block after the condition). Blocks become
+    node types: step, say (bubble), ask (input), branch (condition). It also holds input checks (F16), rules (F17),
+    loops (F18), save response (F19), `validateArgs` / `planCall` / `ranOutput` / `completeError` for actions, and
+    `stepCard`.
+  - **Tools** (`wf-tools.ts`): each is serialised per run (in-memory `serial` queue), loads the run fresh, rejects
+    moves on ended runs or runs waiting for approval, checks the move, saves state (`saveRun`), logs `run_event`s and
+    returns `{ok, status, progress, next (step card), actions, say, result}` or `{ok:false, reason, fix}`.
 
-1. **Purpose.** Make the server, not the model, decide what is allowed and what comes next.
-2. **Business logic.**
-   - **Engine** (`engine/engine.ts`, pure): turns the canvas into a `Flow` (`graphFlow`: `first`, `node`, `next`, `afterCase`); unconnected cases fall through to the next block. Provides input checks, rules, loop bookkeeping, save response, argument validation (`validateArgs`: required fields, integer coercion), action planning (`planCall` → reject / run / approval / evidence / escalate), "already ran" (`ranOutput`), completion guard (`completeError`), approval summary (`approvalTask`), step cards (`stepCard`), and `settle` (nothing runs on its own: the run waits at the next block or completes when none is left).
-   - **Tools** (`agents/wf-tools.ts`): each tool is `logged` (rejections → `move_rejected` event) and `serial` (one move at a time per run, in-memory promise chain). Shared guard `active()`: must be an agent run, not ended, not waiting for approval.
+| Tool | Accepts | Rejects |
+|---|---|---|
+| `wf_save_input(input_id, value)` | The current input, or a later input reachable through bubbles and inputs only (saved ahead, no advance) | Not an input; not reachable yet; invalid format (counts a try) |
+| `wf_choose_case(condition_id, case_id, reason)` | A case of the current condition; for rules mode only the case the rules pick | Not current; unknown case; rules disagree (fix names the right case) |
+| `wf_complete_step(step_id, summary)` | Current AI step once its action ran; bubble (queues its text); input already answered | Not current; condition (use choose_case); action not run; input not saved |
+| `call_action(action_key, args)` | An action the current AI step mentions, enabled, args valid; runs it, or opens an approval, or escalates | Not an AI step; not allowed here; disabled; missing/wrong args; tool failed |
+| `wf_handoff(reason)` | Any non-ended run → `escalated` | Run already ended |
+| `wf_yield(reason)` | Once per turn → supervisor takes over | Second yield in a turn |
+| `wf_switch_workflow` | Defined in `tools.ts` but **not** given to the workflow agent; reachable only via `/dev` | — |
 
-   | Tool | Allowed when | Effect |
-   |---|---|---|
-   | `wf_save_input(input_id, value)` | Input is current, or a later input reachable through only bubbles/inputs | Validates format; saves to variable; advances if current; 3 bad tries → escalate |
-   | `wf_choose_case(condition_id, case_id, reason)` | Condition is current | Rules mode: server re-computes and rejects a wrong pick; records case; follows its arrow |
-   | `wf_complete_step(step_id, summary)` | Block is current | Bubble → queued to outbox; input → must be saved; AI step → its action must have run |
-   | `call_action(action_key, args)` | Current block is an AI step that mentions the key | Validates args; returns stored output if already ran; escalate / open approval / run |
-   | `wf_handoff(reason)` | Agent run not ended | Ends run `escalated` |
-   | `wf_switch_workflow` | (dev / supervisor path only) | Cancels run, starts another (confidence ≥ 0.8) |
+  - Ending a run cancels its pending approval tasks and logs `run_completed` / `run_escalated` / `run_cancelled`.
+- **Components.** `engine/engine.ts`, `agents/wf-tools.ts`, `agents/tools.ts` (zod schemas), `runner/context.ts`.
+- **Data.** `workflow_run`, `run_event`, `action_run`, `approval_task`.
+- **Dependencies.** F9, F21.
+- **Failure scenarios.** Every rejection is logged (`move_rejected` with tool, reason, args) "so evals can count
+  invalid-move attempts". ⚠ Risk (possible, not reproduced): `active()` allows moves on a `failed` run, so a customer
+  message on a failed run lets the agent act on it (for example open a second approval for the same step).
+- **Tests.** `server/test/engine.test.ts`.
 
-   Every success returns `{ ok, run_id, status, progress, next (step card), actions (arg specs), say (pending bubbles), result }`.
-3. **Flow.** load run → guard → engine check → mutate `facts` → `commit` (save run, log events, on end cancel pending approvals and log `run_<status>`) → result.
-4. **Components.** `engine.ts`, `wf-tools.ts`, `tools.ts`, `runner/context.ts`.
-5. **APIs.** Via agents; directly via `/dev/agent-runs/:id/tools/:tool` (F30).
-6. **Data.** `workflow_run`, `run_event`, `approval_task`, `action_run`.
-7. **Dependencies.** F8, F20.
-8. **Failures.** Every rejection carries a `reason` and a `fix` the agent is told to follow.
-9. **Security.** ⚠ Risk: `serial()` is an in-process map; it only serializes moves inside one server process (the inbox already serializes per conversation).
+### F16 Input blocks
 
-### F15 Input blocks
+- **Purpose.** Ask for one value and save it in a variable, with format checks.
+- **Business logic.**
+  - Formats: **text** (any non-empty), **email** (first address found, lowercased), **number** (first number, commas
+    removed), **phone** (7–15 digits, optional `+`).
+  - Invalid answer → rejection with the retry text (custom `retry`, or a default per format). The fourth invalid answer
+    for the same input escalates the run ("no valid answer after 3 tries", `MAX_ASKS = 3`).
+  - **Answering ahead:** if the customer already gave a later input's value and only bubbles and inputs lie between,
+    the agent may save it now; when the run reaches it, the step card shows `answered` and the agent completes it.
+  - An empty prompt is allowed (a bubble before it can ask the question).
+- **Components.** `engine.ts#checkAnswer`, `#saveAnswer`, `#countAsk`, `#askText`, `#reachableInput`;
+  `wf-tools.ts#wfSaveInput`; UI in `group-card.tsx`.
+- **Data.** `facts.vars`, `facts.outputs`, `facts.attempts`; events `input_received`, `input_invalid`.
+- **Failure scenarios.** As above. ⚠ Risk: an invalid answer does not reset the reminder/expiry timers (F22).
 
-1. **Purpose.** Collect a specific value from the customer into a variable.
-2. **Business logic** (`engine.ts#checkAnswer`, `#saveAnswer`, `#countAsk`, `#RETRY`). Formats: `text` (any non-empty), `email` (first email-looking token, lower-cased), `number` (first number, commas removed), `phone` (7–15 digits, optional `+`). Bad answer → reject with retry text (block's own `retry`, else the default per format). More than 3 bad answers → run escalates ("no valid answer after 3 tries"). An answer given early can be saved for a later input if only bubbles/inputs sit between (`reachableInput`); when the run reaches it, the step card shows `answered` and the agent just completes it.
-3. **Flow.** Agent reads card `type: input` → asks or saves → `wf_save_input` → advance.
-4. **Components.** `engine.ts`, `wf-tools.ts#wfSaveInput`, `group-card.tsx` (input UI with retry text).
-5. **APIs.** Via tools.
-6. **Data.** `facts.vars`, `facts.outputs`, `facts.attempts`; events `input_received`, `input_invalid`.
-7. **Dependencies.** F14.
-8. **Failures.** As above.
-9. **Security.** N/A.
+### F17 Conditions (AI and rules)
 
-### F16 Conditions (AI and rules)
+- **Purpose.** Branch the workflow.
+- **Business logic.**
+  - **AI condition:** cases with free text ("When…"); the agent picks the case that fits the conversation.
+  - **Rules condition:** each case has rules `variable op value` (or `op {{other variable}}`), joined by AND or OR.
+    Operators: `=`, `!=`, `contains` (text, case-insensitive), `>`, `<` (numbers), `empty`, `not_empty`. The first
+    matching case wins; Else catches the rest. Values come from built-in variables, `facts.collected` and `facts.vars`.
+  - For rules, the agent still calls `wf_choose_case`; the server recomputes the answer and rejects a wrong pick.
+  - A case with no arrow continues with the block after the condition.
+- **Components.** `engine.ts#chooseByRules`, `#test`, `#ruleValues`, `#stepCard`; `wf-tools.ts#wfChooseCase`; UI
+  `group-card.tsx#Rules`.
+- **Data.** `facts.cases`; event `case_chosen`.
+- **Failure scenarios.** ⚠ Risk: a rules condition **without Else** where no rule matches cannot be passed: the engine
+  says "no case" but the tool only accepts an existing case id, so every pick is rejected (validation does not require
+  Else). The agent's only way out is a hand-off.
 
-1. **Purpose.** Branch the workflow.
-2. **Business logic.**
-   - **AI condition**: each case has a natural-language "when"; the agent picks one with a reason.
-   - **Rules condition**: each case has rules (`variable op value-or-{{other variable}}`) joined by AND/OR; ops `=`, `!=`, `contains` (case-insensitive), `>`, `<` (numeric), `empty`, `not_empty`. The first matching case wins; Else catches the rest. The **agent still picks**, and the server rejects a pick that disagrees with `chooseByRules`, telling it the right case.
-   - Values come from built-in variables, older `collected` values and the workflow's own `vars` (`ruleValues`).
-3. **Flow.** Card `ai_condition` / `rules_condition` → `wf_choose_case` → `afterCase` follows the case arrow (or falls through).
-4. **Components.** `engine.ts`, `wf-tools.ts#wfChooseCase`, `group-card.tsx` (case editor, rule rows, AND/OR switch).
-5. **APIs.** Via tools.
-6. **Data.** `facts.cases`; event `case_chosen`.
-7. **Dependencies.** F14, F15, F18.
-8. **Failures.** Unknown case id or wrong rules pick → rejection with fix.
-9. **Security.** N/A.
+### F18 Loops (repeat limit, ask again)
 
-### F17 Loops (repeat limit, ask again)
+- **Purpose.** Let a workflow go back (for example "try another order"), safely.
+- **Business logic.**
+  - The engine keeps a **trail** of finished blocks. An arrow to a block already on the trail is a loop-back: the
+    blocks from there are re-run, their results moved to `previous`, cases, attempts and outputs cleared.
+  - **Repeat limit** (`maxVisits` on the arrow): taking it more often than allowed escalates the run (`loop_limit`,
+    event `goto_limit`). Otherwise `goto_jumped` with the visit number.
+  - **Ask again** (`fresh`): also clears the variables those blocks filled, so inputs ask again; otherwise earlier
+    answers are kept.
+  - Each loop-back increases the visit number used in action idempotency keys (F9).
+- **Components.** `engine.ts#follow`, `#rerun`, `#visitOf`; `graph.ts#cycles` (validation);
+  `web/src/lib/graph.ts#loopEdges` and `canvas/edge.tsx` (editor).
+- **Data.** `facts.trail`, `facts.visits`.
+- **Failure scenarios.** Limit reached → `escalated`.
 
-1. **Purpose.** Allow "try again" paths without infinite loops.
-2. **Business logic** (`engine.ts#follow`, `#rerun`). The run keeps a `trail` of finished blocks; following an arrow to a block already on the trail is a loop back. Each loop back counts a visit on that edge; exceeding `maxVisits` ends the run `escalated` (`loop_limit`). Re-run blocks have their outputs, cases and attempts cleared (kept in `previous`). With **ask again** (`fresh`), variables those blocks filled are cleared so the customer is asked again; otherwise earlier answers are kept. Each visit gives actions a new idempotency key (F8). Validation requires a repeat limit on every cycle (F3).
-3. **Flow.** Automatic inside every advancing tool.
-4. **Components.** `engine.ts`, `graph.ts#cycles`, `edge.tsx` (loop badge and settings), `graph.ts#loopEdges` (web).
-5. **APIs.** —
-6. **Data.** `facts.visits`, `trail`, `since`, `previous`; events `goto_jumped`, `goto_limit`.
-7. **Dependencies.** F14.
-8. **Failures.** Limit reached → escalation.
-9. **Security.** N/A.
+### F19 Save response
 
-### F18 Save response
+- **Purpose.** Copy fields of a tool's response into workflow variables (for later conditions or text).
+- **Business logic.** On an AI step with an `@action`, map **path → variable**. Paths: `field`, `items[0].name`,
+  `items.0.name`, `items.length`, or `$` for the whole response. After the action runs (auto or approved), found values
+  are saved; missing paths are logged.
+- **Flow (editor).** "Save response" → **+ field** → pick from the **last real response** of that action
+  (`GET /actions/:key/sample`, newest succeeded `action_run`) shown as a tree; picking names an empty variable after the
+  field (`$` → `<action>_result`).
+- **Components.** `engine.ts#getPath`, `#saveResponse`; `wf-tools.ts#keep`; `canvas/save-response.tsx`.
+- **Data.** `facts.vars`, `facts.varsBy`; event `response_saved {saved, missing}`.
+- **Failure scenarios.** No sample yet → the picker says to run the workflow once or type the path.
 
-1. **Purpose.** Use parts of an action's response later (in text, rules, other steps).
-2. **Business logic** (`engine.ts#getPath`, `#saveResponse`). Each mapping is `path → variable`; paths like `status`, `items[0].name`, `items.0.name`, `items.length`, or `$` for the whole response. Missing paths are reported, not fatal. Runs after a successful action (auto or approved).
-3. **Flow.** In the editor, "Save response" under an AI step offers a tree of the action's **last successful real response** (`GET /actions/:key/sample`) to pick fields; at runtime `keep()` saves and logs `response_saved`.
-4. **Components.** `engine.ts`, `wf-tools.ts#keep`, `web/src/components/canvas/save-response.tsx`, `var-select.tsx`.
-5. **APIs.** `GET /actions/:key/sample`.
-6. **Data.** `facts.vars`, `facts.varsBy`; `action_run.result`.
-7. **Dependencies.** F8.
-8. **Failures.** Missing paths shown in the timeline and Steps view ("not in response").
-9. **Security.** ⚠ Risk: the sample endpoint returns real customer data from past runs to any caller.
+### F20 Text bubbles and the verbatim reply check
 
-### F19 Text bubbles and the verbatim reply check
+- **Purpose.** Guarantee exact wording for fixed messages while still letting the agent write a natural reply.
+- **Business logic.**
+  - Completing a bubble queues its rendered text in `workflow_run.outbox`; every tool result lists pending text under
+    `say`.
+  - Before sending, `deliver` checks the reply contains each pending bubble **word for word**. If not, one rewrite call
+    (agent `bubble-fix`, no tools) is made; anything still missing is appended by the server. The outbox is then cleared.
+  - If the agent yields or the reply is dropped as stale (F25), the bubbles stay pending for the next reply.
+- **Components.** `wf-tools.ts#wfCompleteStep`, `agents.ts#deliver`.
+- **Data.** `workflow_run.outbox`; event `bubble_fixed {by: 'rewrite' | 'server'}`; `llm_usage` row for the rewrite.
 
-1. **Purpose.** Guarantee fixed wording (policies, confirmations) reaches the customer exactly.
-2. **Business logic.** Completing a bubble queues its rendered text in `workflow_run.outbox`. When the turn's reply is
-   delivered (`agents.ts#deliver`), each pending bubble must appear **word for word**. If any is missing: one rewrite call
-   (`bubble-fix`, no tools); if still missing, the server appends the missing lines. Then the outbox is cleared.
-   Unset `{{variables}}` render as empty text.
-3. **Flow.** `wf_complete_step` (bubble) → `say[]` in results → agent reply → `deliver`.
-4. **Components.** `wf-tools.ts#wfCompleteStep`, `agents.ts#deliver`, `engine.ts#bubbleText`, `#shownVars`.
-5. **APIs.** —
-6. **Data.** `workflow_run.outbox`; events `bubble_fixed`, `message_sent`; `llm_usage` (agent `bubble-fix`).
-7. **Dependencies.** F13, F27.
-8. **Failures.** Covered by the two fallbacks. If the reply is dropped as stale (F24), bubbles stay pending for the next turn.
-9. **Security.** N/A.
+### F21 Approvals
 
-### F20 Approvals
-
-1. **Purpose.** Keep a person in the loop for risky actions and evidence reviews.
-2. **Business logic.**
-   - `call_action` on an action with **Needs approval** opens an `action` task (summary like "Refund order: $79.99 for 4512" from `subject_field`/`amount_field`); built-in `request_approval` opens an `evidence` task with the agent's summary. The run moves to `waiting_approval`; the agent tells the customer the team is checking. One pending task per (run, block).
-   - While waiting, every move is rejected ("tell the customer the team is checking").
-   - Decision (`POST /approvals/:id/decide`) updates the task, then the inbox runs `approvalTurn`:
-     - **approved action** → run it in `approved` mode (same idempotency key); on success save response and advance; on failure the run becomes **`failed`** at that step for a teammate to retry (F22);
-     - **evidence** (either decision) and **rejected action** → store `{ approved, reviewed_by, reviewer_note }` as the block's output and advance;
-     - then the workflow agent tells the customer.
-   - Approvals time out after `APPROVAL_TIMEOUT_SEC` (F21).
-3. **Flow.**
+- **Purpose.** Keep a person in the loop for risky actions and for evidence reviews.
+- **Business logic.**
+  - **Action approval:** `call_action` on an action with **Needs approval** opens an `approval_task` (kind `action`,
+    summary = action name, args, evidence = current outputs, `due_at = now + APPROVAL_TIMEOUT_SEC`), sets the run to
+    `waiting_approval` and returns "waiting: team approval". The agent tells the customer the team is checking.
+  - **Evidence review:** the built-in `request_approval(summary)` opens a task of kind `evidence`.
+  - **Deciding:** Approvals page or the card in the playground chat → `POST /approvals/:id/decide` sets the task
+    status, then queues `approval_decided`. In the inbox, `decideAgentApproval`:
+    approved action → runs it (`mode: approved`, same idempotency key), saves its response, advances;
+    rejected action or evidence decision → stores `{approved, reviewed_by, reviewer_note}` and advances.
+    Then the workflow agent runs with the note "The team approved / rejected the request" and tells the customer.
+  - An approved action that fails → run `failed`, waiting for **Retry step** (F23).
+  - Timeout → run `escalated`, task `expired` (F22).
+- **Flow.**
 
 ```mermaid
 sequenceDiagram
-  participant WA as Workflow agent
+  participant WFA as Workflow agent
   participant T as call_action
   participant DB as Postgres
-  participant TM as Teammate (Approvals / chat card)
-  participant IB as Inbox
-  participant V as viaSocket flow
-  WA->>T: call_action(refund, args)
-  T->>DB: approval_task pending, run waiting_approval
-  T-->>WA: {waiting: "team approval"}
-  WA-->>DB: reply "the team is checking"
-  TM->>DB: POST /approvals/:id/decide {approved, note}
-  DB->>IB: ticket_event approval_decided
-  IB->>T: decideAgentApproval
+  participant TM as Teammate
+  participant IN as Inbox
+  WFA->>T: call_action(refund, args)
+  T->>DB: approval_task (pending), run → waiting_approval
+  T-->>WFA: waiting: team approval
+  WFA-->>DB: reply "the team is checking"
+  TM->>DB: POST /approvals/:id/decide (status set)
+  TM->>IN: ticket_event approval_decided
+  IN->>T: decideAgentApproval
   alt approved action
-    T->>V: executeAction(mode=approved)
-    alt success
-      T->>DB: save output, advance
-    else failure
-      T->>DB: run failed (teammate can Retry)
-    end
-  else evidence / rejected
-    T->>DB: output {approved, reviewed_by, note}, advance
+    T->>DB: executeAction (mode approved) → action_run
   end
-  IB->>WA: workflowTurn("resume", "The team approved/rejected…")
-  WA-->>DB: reply to customer
+  T->>DB: advance to next block
+  IN->>WFA: workflowTurn("The team approved…")
+  WFA-->>DB: reply to customer
 ```
 
-4. **Components.** `runner/tasks.ts#openTask`, `runner/runs.controller.ts` (`approvals`, `decide`), `wf-tools.ts` (`wfCallAction`, `decideAgentApproval`, `runApproved`), `agents.ts#approvalTurn`, `web/src/app/approvals/page.tsx`, `run-panel.tsx#ApprovalCard`, nav badge (`nav.tsx`).
-5. **APIs.** `GET /approvals?status=pending|all|…`, `POST /approvals/:id/decide`.
-6. **Data.** `approval_task`, `action_run`, `workflow_run.waiting_for`; events `approval_requested`, `waiting`, `approval_decided`.
-7. **Dependencies.** F8, F11, F13, F21.
-8. **Failures.** Deciding a non-pending task → 404. If the decision doesn't match the run's wait, the customer gets "Sorry, I hit a problem on my side…". Ending a run cancels its pending tasks.
-9. **Security.** ⚠ Risk: anyone can decide; `by` is free text from the client ("You (team)").
-   ⚠ Partial: the Approvals UI shows evidence images from `evidence.attachment_ids` and a reason from `evidence.reason`,
-   but the agent path stores only `evidence: { facts: outputs }`, so **customer photos never appear on approval cards**.
-   ⚠ Business rule to confirm: a **rejected** action still completes its AI step and the workflow continues to the next block.
+- **Components.** `runner/tasks.ts#openTask`, `runner/runs.controller.ts` (`GET /approvals`, `POST …/decide`),
+  `wf-tools.ts#wfCallAction`, `#decideAgentApproval`, `#runApproved`, `agents.ts#approvalTurn`;
+  `web/src/app/approvals/page.tsx`, `run-panel.tsx#ApprovalCard`.
+- **APIs.** `GET /approvals?status=pending|all|<status>`, `POST /approvals/:id/decide {approved, note?, by?}`.
+- **Data.** `approval_task`, `action_run`, `workflow_run.waiting_for`.
+- **Failure scenarios.**
+  - Deciding a task that's no longer pending → `404` "task not pending".
+  - The run no longer waits for that task → the customer gets "Sorry, I hit a problem on my side…".
+    ⚠ Risk: pause is allowed while `waiting_approval`; deciding during the pause is rejected this way, the task stays
+    approved/rejected but the run never uses it, and after resume it waits until the approval timeout escalates it.
+- **Status: Partial for photos.** `GET /approvals` and `ApprovalCard` look for `evidence.attachment_ids` and
+  `evidence.reason`, but the agent path writes `evidence = {facts: outputs}` only, so no photos or reason are shown.
+- **Security.** `by` (the decider's name) is free text from the client; anyone can decide any task.
 
-### F21 Timers: reminders, expiry, approval timeout
+### F22 Timers: reminder, expiry, approval timeout
 
-1. **Purpose.** Nudge silent customers, close abandoned chats, and stop approvals waiting forever.
-2. **Business logic.**
-   - After each workflow turn, an active run becomes `waiting_customer` with `remind_at = now + REMIND_AFTER_SEC` and `expires_at = now + EXPIRE_AFTER_SEC` (`agents.ts#markWaiting`).
-   - Every 30 s the sweeper (`inbox.ts#sweep`) finds agent runs with a due reminder, expiry or approval `due_at`, and enqueues **one** `timer` event per conversation.
-   - `timerTurn` (no AI, fixed texts): reminder once ("Just checking in: I still need …"); expiry → run `expired` + closing message; approval timeout → run `escalated`, tasks `expired`, message that a teammate will follow up.
-3. **Flow.** Sweeper → `ticket_event timer` → drain → `timerTurn`.
-4. **Components.** `inbox.ts`, `agents.ts#markWaiting`.
-5. **APIs.** —
-6. **Data.** `workflow_run.waiting_for`, `approval_task`; events `reminder_sent`, `run_expired`, `run_escalated`.
-7. **Dependencies.** F11.
-8. **Failures.** Sweep errors are logged. A customer message moves the run back through a turn, which resets the timers.
-9. **Security.** N/A. Note: `timerTurn` writes run status directly with SQL instead of through `saveRun`/`commit` (§11).
+- **Purpose.** Keep chats from hanging: nudge silent customers, close abandoned chats, escalate slow approvals.
+- **Business logic.**
+  - After each workflow-agent turn, a `running` run becomes `waiting_customer` with
+    `remind_at = now + REMIND_AFTER_SEC` and `expires_at = now + EXPIRE_AFTER_SEC` (`markWaiting`).
+  - Every 30 s the sweeper finds runs whose reminder (not yet sent), expiry or approval `due_at` has passed, and
+    queues one `timer` event per conversation (skipped if one is already pending or working).
+  - `timerTurn` (no AI, fixed texts): expiry → run `expired`, "I haven't heard back, so I'm closing this for now…";
+    reminder → "Just checking in: I still need <variable> to continue." (once); approval timeout → run `escalated`,
+    pending task `expired`, "Our team needs a little more time on this…".
+- **Components.** `agents.ts#markWaiting`, `inbox.ts#sweep`, `#timerTurn`.
+- **Data.** `workflow_run.waiting_for`, `ticket_event` (`timer`), `run_event` (`reminder_sent`, `run_expired`, `run_escalated`).
+- **Failure scenarios.**
+  - ⚠ Risk: timers are only re-armed when a tool move set the run back to `running`. A customer reply that moves
+    nothing (an off-topic question, an invalid answer) leaves the old `remind_at` / `expires_at`, so an active customer
+    can still be closed `EXPIRE_AFTER_SEC` after the last move.
+  - After an expiry the next customer message is routed by the supervisor again (it can start a new run).
+- **Note.** The plan's separate `ticket_timer` table is not implemented; timers live in `waiting_for`.
 
-### F22 Run controls (pause, resume, cancel, retry)
+### F23 Run controls (pause, resume, cancel, retry)
 
-1. **Purpose.** Let a teammate take control of a run.
-2. **Business logic.** Allowed states (`runs.controller.ts#ALLOWED`): pause from running / waiting_customer / waiting_approval; resume from paused; retry from failed; cancel from any active state. The request is checked immediately, then applied by the inbox in order with agent turns.
-   - **pause**: remembers `status` and `waiting_for` in `paused_from`; timers stop (sweeper ignores `paused`).
-   - **resume**: restores them; **no** agent turn.
-   - **cancel**: ends run `cancelled`, cancels pending approvals.
-   - **retry**: if the failed step has an approved action, re-run it (same key); otherwise set the run back to `running`; then the workflow agent speaks.
-3. **Flow.** Run panel button → `POST /runs/:id/:op {by}` → `ticket_event control` → `controlTurn` → `controlAgentRun`.
-4. **Components.** `runs.controller.ts`, `agents.ts#controlTurn`, `wf-tools.ts#controlAgentRun`, `run-panel.tsx`.
-5. **APIs.** `POST /runs/:id/pause|resume|cancel|retry`.
-6. **Data.** `workflow_run.status`, `paused_from`; event `signal`.
-7. **Dependencies.** F11, F13, F20.
-8. **Failures.** Wrong state → 400 at request time; if state changed before the inbox applies it, a system note "`<op>` failed: …".
-9. **Security.** No auth; `by` is client-supplied.
-   ⚠ Behaviour to confirm: while paused, a customer message is recorded with the note "the bot will reply after a
-   teammate resumes it", but resume returns `turn: false`, so no reply is generated until the customer writes again.
+- **Purpose.** Let a teammate take control of a run from the run panel.
+- **Business logic.**
 
-### F23 Hand-off to a human and workflow switching
+| Control | Allowed when | Effect |
+|---|---|---|
+| Pause | running, waiting_customer, waiting_approval | Saves status and wait in `paused_from`, clears `waiting_for` (timers stop). Customer messages are logged; the bot replies "after a teammate resumes it" |
+| Resume | paused | Restores status and wait (old timer times included). **No** agent turn: messages received while paused are answered on the next customer message |
+| Cancel | any active status | Run `cancelled`, pending tasks cancelled; no message to the customer |
+| Retry step | failed | If an approved action failed: re-run it (same idempotency key), then the agent tells the customer. Otherwise: back to `running` and the agent tries the step again |
 
-1. **Purpose.** Escalate cleanly, and follow the customer when they change topic.
-2. **Business logic.**
-   - **Hand-off**: workflow agent `wf_handoff` or supervisor `hand_off` ends the active run `escalated`. Other escalation paths: `@escalate_to_human` in a step, 3 bad input answers, loop limit, approval timeout. After an escalated run, the bot **stays silent** on that conversation (`customerTurn`).
-   - **Switch**: supervisor `switch_workflow` (confidence ≥ 0.8) cancels the current run ("switched to X") and starts the new workflow's run on the same conversation; the timeline shows both runs.
-   - **Yield**: the workflow agent's `wf_yield` returns the turn so the supervisor can switch or reply.
-3. **Flow.** See F12 table.
-4. **Components.** `wf-tools.ts` (`wfHandoff`, `wfSwitchWorkflow`, `startAgentRun`), `agents.ts` (`hand_off`, `switch_workflow`, `wf_yield`).
-5. **APIs.** Via agents.
-6. **Data.** `workflow_run`, `message` (system notes), events `handoff`, `workflow_switched`, `yielded`, `run_escalated`, `run_cancelled`.
-7. **Dependencies.** F12, F13.
-8. **Failures.** Low confidence, same workflow, unpublished target → rejection with fix.
-9. **Security.** N/A. ⚠ Edge case: `hand_off` with **no** active run only writes a system note; since there is no escalated run, the bot keeps answering later messages.
+  The controller checks the status when called; the inbox applies the control in order with other events.
+- **Components.** `runner/runs.controller.ts#control`, `agents.ts#controlTurn`, `wf-tools.ts#controlAgentRun`;
+  buttons in `run-panel.tsx`.
+- **APIs.** `POST /runs/:id/:op` (`pause` \| `resume` \| `cancel` \| `retry`), body `{by?}`.
+- **Data.** `workflow_run`, `run_event` (`signal`), `ticket_event` (`control`).
+- **Failure scenarios.** Wrong status → `400` immediately; a status change between the check and the inbox → system
+  note "`<op>` failed: …".
+- **Security.** Any caller can control any run; `by` is client-supplied.
 
-### F24 Stale-reply protection and message merging
+### F24 Hand-off, yield and workflow switching
 
-1. **Purpose.** Avoid answering an outdated chat when the customer sends several messages quickly.
-2. **Business logic.**
-   - **Merge**: when the next customer-message event is claimed and a newer one is pending, the older is marked done ("merged into a later message"); agents read the whole chat anyway.
-   - **Seen marker**: each turn records the newest customer message it read (`turn.seenId`); after the turn, pending customer events whose messages are not newer are closed ("answered in an earlier turn").
-   - **Drop stale reply**: if a newer customer message arrived during the turn, the reply is not sent (`reply_dropped` event or system note), and pending bubbles wait for the next turn.
-3. **Components.** `inbox.ts#drain`, `agents.ts#history`, `#newerMessage`, `#deliver`.
-4. **APIs / Data.** `ticket_event`, `message`, `run_event`.
-5. **Dependencies.** F11.
-6. **Failures / security.** N/A.
+- **Purpose.** Move a chat to a person, or to a better-fitting workflow.
+- **Business logic.**
+  - **Hand-off:** `wf_handoff` (workflow agent) or `hand_off` (supervisor) → run `escalated`. From then on, while no
+    run is active and the last one is escalated, the bot stays silent on that conversation. There is no "take back"
+    control in the UI; a teammate can still write as Team.
+  - Runs also end `escalated` on: `escalate_to_human` action, loop limit, four invalid answers, approval timeout.
+  - **Yield:** the workflow agent calls `wf_yield` when the customer wants something its workflow doesn't cover; the
+    supervisor gets `yielded` back and can `switch_workflow` and delegate again, or reply itself. Pending bubbles wait.
+  - **Switch:** `switch_workflow` (confidence ≥ 0.8, published, not the current one) cancels the run
+    ("switched to X") and starts a new run; the timeline shows both runs.
+- **Components.** `wf-tools.ts#wfHandoff`, `#wfSwitchWorkflow`, `#startAgentRun`; `agents.ts` (`wfYield`, supervisor tools).
+- **Data.** `workflow_run`, `run_event` (`handoff`, `yielded`, `workflow_switched`), system messages.
 
-### F25 Playground
+### F25 Stale-reply protection and message merging
 
-1. **Purpose.** A test bench that plays both customer and teammate.
-2. **Business logic.** Pick a persona (Alex Kim, Sam Rivera, Jo Patel), start a conversation, chat as **Customer** (with image attachments) or **Team**. The list shows each chat's latest run status, last message, a widget badge, and a red dot when an approval is pending. Approval cards appear inline in the chat. A "working…" hint shows while the last message is from the customer and the run is running (or not started).
-3. **Flow.** Polls `GET /conversations` and `GET /conversations/:id` every 1.5 s.
-4. **Components.** `web/src/app/playground/page.tsx`, `run-panel.tsx`.
-5. **APIs.** `/conversations*`, `/attachments`, `/approvals/:id/decide`, `/runs/:id/:op`.
-6. **Data.** As F9.
-7. **Dependencies.** F9–F27.
-8. **Failures.** API errors surface via `ApiError` (send button simply stops being busy).
-9. **Security.** Admin surface; no auth.
+- **Purpose.** Never answer an old version of the chat when the customer writes quickly.
+- **Business logic.**
+  - Inbox: of several pending customer messages, only the latest starts a turn; agents read the whole history anyway.
+  - Each turn records the newest customer message it read (`seenId`). Before sending, if a newer customer message exists,
+    the reply is **dropped** (`reply_dropped`, or system note "Supervisor reply dropped") and the next turn answers
+    everything. After a turn, pending messages it already read are closed.
+- **Components.** `inbox.ts#drain`, `agents.ts#history`, `#newerMessage`, `#deliver`, `#customerTurn`.
+- **Data.** `ticket_event.error` explains merged events; `run_event`.
+- **Failure scenarios.** A dropped reply costs a model call; tool moves made in that turn still stand.
 
-### F26 Run panel and timeline
+### F26 Playground
 
-1. **Purpose.** The teammate's view of what the agents did and why.
-2. **Business logic.**
-   - **Header**: workflow name and version, status chip, waiting line (customer: expected values and reminder/expiry time; approval: due time), end reason, control buttons (F22).
-   - **Steps**: every group/block of the run's version; current block highlighted; done blocks ticked; unreachable blocks marked **Skipped** (`lib/graph.ts#reachableFrom`); input values, saved variables (JSON trees), chosen case, tool calls with input/response, duration, approved mode and retry number (`tool-call.tsx`).
-   - **Timeline**: one plain sentence per meaningful event, grouped by block, one section per run (older runs collapsed), click a line for raw JSON; supervisor and agent lines show the cost of that model call.
-3. **Components.** `run-panel.tsx`, `run-timeline.tsx`, `tool-call.tsx`, `json-view.tsx`, `inline-text.tsx`.
-4. **APIs.** Data from `GET /conversations/:id`.
-5. **Data.** `workflow_run`, `run_event`, `action_run`, `approval_task`, `llm_usage`.
-6. **Dependencies.** F27.
-7. **Failures.** — 
-8. **Security.** —
-   Note: the timeline maps some event types that the agent engine never emits (`waiting` for a customer, `error`,
-   `input_invalid` with a "not an answer" reason); they are leftovers from the runner era (§11).
+- **Purpose.** Test workflows end to end without a real ticketing system; act as customer and teammate side by side.
+- **Business logic.** Pick a persona (Alex Kim, Sam Rivera, Jo Patel) → **New conversation**. The left list shows each
+  chat's latest run status, last message, a red dot and "Needs approval" when tasks are pending, and a **widget** badge
+  for widget chats. The chat merges messages and approval cards in time order; system notes are centred; "AI is
+  working…" shows while the last message is the customer's and the run is running (or none exists yet). **Write as**
+  Customer (with image attachments) or Team. The right side is the run panel (F27).
+- **Components.** `web/src/app/playground/page.tsx`; `run-panel.tsx`.
+- **APIs.** `GET/POST /conversations`, `GET /conversations/:id` (polled every 1.5 s), message, team-message and
+  attachment routes.
+- **Data.** Reads conversations, messages, runs, events (newest 500 across all runs of the chat), approvals,
+  `action_run` of the latest run, and usage.
 
-### F27 AI usage, cost and call traces
+### F27 Run panel and timeline
 
-1. **Purpose.** Know what each conversation costs and see exactly what the model was sent.
-2. **Business logic** (`agents/usage.ts`). Every agent call goes through `trackedGenerate`, which records an `llm_usage`
-   row: agent name, `provider/model`, input/output tokens, cost (from `prices.ts`, $ per 1M tokens; `null` if the model
-   has no price), start time, and a **trace** (per model round: the provider request body, text, tool calls, tool results,
-   finish reason, usage). The conversation view sums calls and lists models without a price.
-3. **Flow.** Run panel "AI cost for this conversation" → click a call → `GET /ai-calls/:id` → dialog with rounds (copyable JSON).
-4. **Components.** `usage.ts`, `prices.ts`, `playground.controller.ts` (`aiCall`, `ai_usage`), `web/src/components/ai-call.tsx`, `run-panel.tsx#AiCost`.
-5. **APIs.** `GET /ai-calls/:id`; `ai_usage` in `GET /conversations/:id`.
-6. **Data.** `llm_usage`.
-7. **Dependencies.** F29.
-8. **Failures.** Unpriced models count as $0 with a warning in the UI.
-9. **Security.** ⚠ Risk: traces contain full prompts and customer messages and are readable by any caller with the id.
+- **Purpose.** The teammate's view of what the agent did and why.
+- **Business logic.**
+  - **AI cost** box (F28).
+  - **Header:** workflow name, status chip, waiting line ("Waiting on customer: order_id · reminder 10:42" or
+    "Waiting for approval · due …"), end reason, controls (F23).
+  - **Steps:** the run's own graph, start group first then by position; each block is current (spinner or clock),
+    done (check), skipped (struck through; can't be reached any more) or upcoming. Steps show their tool calls (input,
+    response, duration, "approved", "2nd try"; failed calls open by default), saved variables (objects as a JSON tree);
+    inputs show the saved value; conditions show the chosen case.
+  - **Timeline:** every run of the chat (older runs collapsed), one plain sentence per meaningful event, grouped in
+    boxes per block labelled "Group › n · text", run endings last; click a line for its raw JSON. Supervisor lines
+    carry the cost of that call.
+- **Components.** `run-panel.tsx` (`RunPanel`, `GraphRun`, `SavedVar`, `ApprovalCard`), `run-timeline.tsx`
+  (`sentence`, `nodeLabels`), `tool-call.tsx`, `json-view.tsx`, `inline-text.tsx`; `web/src/lib/graph.ts#reachableFrom`.
+- **Data.** `run_event` types and `data` shapes are hard-coded in `run-timeline.tsx#sentence`.
+- **Note.** The timeline has cases for events the agent path never emits (`error`, customer `waiting`, the
+  "not an answer" `input_invalid` reason): Legacy.
 
-### F28 Embeddable chat widget
+### F28 AI usage, cost and call traces
 
-1. **Purpose.** Put the same agents and workflows inside another product with one script tag.
-2. **Business logic.**
-   - **Loader** `web/public/widget.js`: reads `data-title`, `data-color`, optional `data-name`/`data-email` (the host's signed-in user); adds a floating button and an iframe to `/embed`; exposes `window.Ticket0Chat.open()/close()`; closes on a `postMessage` from the same origin.
-   - **Widget** `/embed`: customer-only view; stores the conversation id in `localStorage` (`t0_widget_conversation`); asks for name/email if the host didn't pass them; supports image attachments; shows "typing…" while a reply is owed and "A teammate is reviewing your request" during approvals; hides system messages, runs, events and approvals.
-   - **Config page** `/chatbot`: pick title/colour, toggle "pass the signed-in user", copy the snippet, live preview iframe, open a demo host.
-   - **Demo host** `/embed-demo`: fake store page that injects the loader.
-   - Widget chats appear in the Playground with a "widget" badge.
-3. **Flow.** First send → `POST /widget/conversations {name, email}` → `POST /widget/conversations/:id/messages` → poll `GET /widget/conversations/:id`.
-4. **Components.** `widget.js`, `web/src/app/{embed,embed-demo,chatbot}/page.tsx`, `server/src/playground/widget.controller.ts`; `nav.tsx` hides the admin shell on `/embed*`.
-5. **APIs.** `POST /widget/conversations`, `GET /widget/conversations/:id`, `POST /widget/conversations/:id/messages`, `POST /attachments`, `GET /attachments/:id`.
-6. **Data.** `conversation (channel = 'widget')`, `message`.
-7. **Dependencies.** F9, F11.
-8. **Failures.** Invalid email → 400; an unknown/non-widget conversation id → 404 and the widget forgets it.
-9. **Security.** ⚠ Risk: the customer identity comes from page data or a form and is not verified (any page can claim any email); the conversation id in `localStorage` is the only access key; uploads go through the unauthenticated `/attachments` route.
+- **Purpose.** Show what each conversation's AI costs and exactly what was sent to the model.
+- **Business logic.**
+  - Every agent call goes through `trackedGenerate`, which records `llm_usage`: agent label (`supervisor`,
+    `workflow: <name>`, `bubble-fix`, `probe`), model (`provider/model`), tokens, `started_at`, and a **trace** (per
+    round: the provider request body, text, tool calls and results, finish reason, usage; plus final text).
+  - Cost = tokens × price per 1M from `server/src/agents/prices.ts` (only `openai/gpt-6-luna` is priced, "checked
+    2026-10-13"). Unpriced models count as $0 and the UI names them.
+  - Calls are listed in **start** order (a supervisor call starts before, and ends after, the agent it delegates to).
+  - Clicking a call opens the full exchange with "Copy JSON".
+- **Components.** `agents/usage.ts`, `prices.ts`; `playground.controller.ts#get` (`ai_usage`), `#aiCall`;
+  `run-panel.tsx#AiCost`, `components/ai-call.tsx`; `api.ts#usd` (4 decimals under $0.01).
+- **APIs.** `GET /conversations/:id` (`ai_usage`), `GET /ai-calls/:id`.
+- **Data.** `llm_usage`; `run_event.data.usage_id` links timeline lines to calls.
+- **Security.** ⚠ Risk: traces hold full prompts and chat content and are readable by id without authentication.
+- **Note.** Spending limits and Langfuse tracing are Planned.
 
-### F29 Model provider configuration
+### F29 Embeddable chat widget
 
-1. **Purpose.** Choose which model every agent uses.
-2. **Business logic** (`agents/mastra.ts#model`). `openai` (optional base URL), `anthropic` (optional base URL), or `openai-compatible` (requires `LLM_BASE_URL`; uses chat completions) — intended for a future GTWY pass-through endpoint (README). Mastra storage uses `PostgresStore` in schema `mastra`; a `Memory` (last 20 messages) exists but only the dev probe agent uses it — supervisor and workflow agents get history from the `message` table instead.
-3. **Components.** `mastra.ts`, `config.ts`.
-4. **APIs / integrations.** `@ai-sdk/openai`, `@ai-sdk/anthropic`, `@mastra/core`, `@mastra/pg`, `@mastra/memory`.
-5. **Data.** `mastra.*` tables (created by Mastra; ⚠ Unverified which tables).
-6. **Dependencies.** Env vars.
-7. **Failures.** Missing model/key → error at first agent call (the server still boots).
-8. **Security.** API key from env only.
+- **Purpose.** Put the same agents and workflows inside any product with one script tag.
+- **Business logic.**
+  - **Setup page** `/chatbot`: title, colour, "Pass the signed-in user" (adds `data-name` / `data-email`
+    placeholders); copyable snippet; live preview iframe; **Open demo site**.
+  - **Loader** `web/public/widget.js`: reads `data-*`, adds a round button and a hidden iframe on `/embed?...`; exposes
+    `window.Ticket0Chat.open()` / `.close()`; closes on a `{t0:'close'}` message from its own origin.
+  - **Chat** `/embed`: greeting, messages (no system notes), image attachments, "typing…" while the bot owes a reply,
+    "A teammate is reviewing your request." while waiting for approval. Asks for name and email unless passed in. The
+    conversation id is kept in `localStorage` (`t0_widget_conversation`); a failed load forgets it.
+  - **Demo host** `/embed-demo`: a fake "Northwind" store page that injects the loader.
+  - Widget chats appear in the Playground with a **widget** badge; approvals work the same.
+- **Components.** `widget.js`, `web/src/app/chatbot/page.tsx`, `embed/page.tsx`, `embed-demo/page.tsx`;
+  `server/src/playground/widget.controller.ts`.
+- **APIs.** `POST /widget/conversations {name?, email}`, `GET /widget/conversations/:id`,
+  `POST /widget/conversations/:id/messages`; attachments use the shared `POST /attachments`.
+- **Data.** `conversation.channel = 'widget'`.
+- **Failure scenarios.** Email without `@` → `400`; a non-widget id → `404`.
+- **Security.** The widget API returns only customer-visible data (no runs, events or approvals). Identity is
+  self-declared; the conversation id is the only secret.
 
-### F30 Dev endpoints
+### F30 Model provider and Mastra setup
 
-1. **Purpose.** Exercise the engine and tools without a model.
-2. **Business logic.** Enabled only with `DEV_ENDPOINTS=1` (otherwise 404). Routes: start a test conversation + agent run on a published workflow; read run state (step card, facts, events); call any `wfTools` tool by name with zod-validated args; decide the pending approval; read a workflow's agent map; probe the model (checks key, Mastra memory, usage row).
-3. **Components.** `server/src/dev/dev.controller.ts`.
-4. **APIs.** `POST /dev/agent-runs`, `GET /dev/agent-runs/:id`, `POST /dev/agent-runs/:id/tools/:tool`, `POST /dev/agent-runs/:id/approval`, `GET /dev/workflows/:id/map`, `POST /dev/llm/probe`.
-5. **Data / dependencies.** As F14, F20, F5, F29.
-6. **Failures.** Unknown tool or bad args → 400 listing valid tools / zod issues.
-7. **Security.** Must stay off in deployed environments (`.env.example` comment; `render.yaml` doesn't set it).
+- **Purpose.** Choose the model every agent uses.
+- **Business logic.** `mastra.ts#model()` builds an AI SDK model: `anthropic` (`@ai-sdk/anthropic`), `openai`
+  (`@ai-sdk/openai`, optional base URL) or `openai-compatible` (OpenAI client, chat-completions endpoint, base URL
+  required). Agents call `model()` lazily, so the server boots without keys. Mastra storage is a `PostgresStore` in
+  schema `mastra`; a `Memory` (last 20 messages) and a `Mastra` instance exist only for the dev **probe** agent.
+  Supervisor and workflow agents get the chat history passed in each call instead of Mastra memory.
+- **Components.** `agents/mastra.ts`, `config.ts#llm`.
+- **Failure scenarios.** Missing model or key → "Set LLM_MODEL and LLM_API_KEY to use the agents"; `openai-compatible`
+  without a base URL → error. Both surface as failed inbox events with a system message.
+- **Note.** The `mastra.ts` header comment ("Not connected to customers yet") predates the agents (Legacy comment).
 
-### F31 Database setup and migrations
+### F31 Dev endpoints
 
-1. **Purpose.** Create and evolve the schema.
-2. **Business logic** (`server/scripts/setup-db.js`). Creates the database through the `postgres` maintenance DB if missing (skipped on managed hosts that forbid it), creates `schema_migrations`, applies each `migrations/*.sql` once, in name order, each in its own transaction. Runs on every Render start.
-3. **Migration history (summary).** 0001 base schema + mock shop seed; 0002 viaSocket app actions + `app_connection`; 0003 name unique among non-archived; 0004 single "requires approval" flag, `waiting_approval`, `team` role, `channel`, `visit`; 0005 viaSocket flows; 0006 `details_edited`; 0007 canvas `graph`; **0008 missing** (⚠ Unverified why); 0009 removes mock shop and archives workflows using it; 0010 agents (`engine`, `agent_map`, `llm_usage`); 0011 `ticket_event`; 0012 `control` events; 0013 `cost_usd`; 0014 `started_at` (backfilled from events); 0015 `trace`.
-4. **Failures.** Any SQL error aborts with exit code 1. The script never calls `rollback`; the process exits with the
-   transaction open, so Postgres discards it when the connection drops and the migration is not recorded.
+- **Purpose.** Drive and inspect agent runs without a model, for debugging and evals.
+- **Business logic.** Only when `DEV_ENDPOINTS=1` (otherwise `404`):
+  `POST /dev/agent-runs {workflow_id}` (test conversation "Dev tester" + run), `GET /dev/agent-runs/:id` (state, step
+  card, facts, events), `POST /dev/agent-runs/:id/tools/:tool` (runs the real Mastra tool with zod validation; includes
+  `wf_switch_workflow`), `POST /dev/agent-runs/:id/approval {approved, note?}` (decides directly, no inbox, no agent
+  turn), `GET /dev/workflows/:id/map`, `POST /dev/llm/probe {message}`.
+- **Components.** `server/src/dev/dev.controller.ts`.
+- **Failure scenarios.** ⚠ Risk (bug): `/dev/llm/probe` reads `llm_usage.created_at`, a column `0016` dropped, so the
+  endpoint errors after the model call has been made and recorded.
+- **Security.** Must stay off in deployed environments (`render.yaml` doesn't set it).
 
-### F32 API client and server wake-up handling
+### F32 Database setup and migrations
 
-1. **Purpose.** Make the UI survive the API sleeping on Render's free plan.
-2. **Business logic** (`web/src/lib/api.ts`). On network errors, 502/503/504 or non-JSON responses, requests share one wake-up loop polling `GET /variables` with backoff (1 s → 8 s, up to 90 s). Reads are retried once; writes only when the request clearly never reached the API (network error, 502/503). Error messages come from Nest's `message` (with `issues` for publish validation). `ServerStatus` shows a banner while waking.
-3. **Components.** `api.ts`, `server-status.tsx`.
+- **Purpose.** Create the database and keep the schema current.
+- **Business logic.** `npm run db:setup` → connect to `postgres`, create the database if missing (skipped with a log
+  line where that's not allowed, e.g. Render); create `schema_migrations`; apply each `migrations/*.sql` not yet applied,
+  in name order, each in its own transaction.
+- **Data.** Schema history: `0001` initial · `0002` viaSocket app actions · `0003` name unique among active · `0004`
+  single approval flag, `waiting_approval`, team messages, widget channel · `0005` viaSocket flows · `0006`
+  `details_edited` · `0007` canvas graph · `0009` remove mock shop · `0010` agents, `llm_usage` · `0011`–`0012` inbox ·
+  `0013`–`0015` cost, start time, trace · `0016` minimal schema (drops DBOS, app connections, list-form steps, agent map,
+  runner engine) · `0017` draft and published copy on `workflow`, run keeps its own graph, `workflow_version` dropped.
+- **Failure scenarios.** A failing migration rolls back that file and exits with code 1 (deploy start fails).
+- **Note.** There is no `0008`; ⚠ Unverified why.
 
-### F33 Unit tests
+### F33 API client and server wake-up handling
 
-1. **Purpose.** Pin the engine's and map's rules without DB or AI.
-2. **Coverage** (`server/test/engine.test.ts`, `map.test.ts`, fixture `fixtures.ts` "Item return" graph): input formats, asks limit, retry texts; rules (first match, `ref`, or / contains / empty / not_empty); loops (visits, fresh vs keep, limit); save response paths; action planning (not allowed, disabled, bad args, approval, escalate, evidence, never twice); settle, answer-ahead reachability, step cards; map numbering, unreachable groups, tools/saves, branches/loops, prompt text.
-3. **Run.** `cd server && npm test` (compiles with `tsconfig.test.json`, runs `node --test`).
-4. **Gaps.** No tests for `wf-tools.ts`, agents, inbox, controllers, validation (`graph.ts`), executor, or the web app.
+- **Purpose.** Make the UI survive the free-plan API waking from sleep, and show readable errors.
+- **Business logic** (`web/src/lib/api.ts#api`). JSON fetch with `cache: 'no-store'`. On a network error, 502/503/504
+  or a non-JSON body, one shared loop polls `GET /variables` with back-off (1 s → 8 s, up to 90 s); reads are retried
+  once it answers, writes only if the request clearly never arrived (network error, 502, 503). Errors become
+  `ApiError(status, message, issues)` (validation lists flow through to the editor).
+- **Components.** `api.ts`, `components/server-status.tsx`.
 
-### F34 Legacy viaSocket app actions
+### F34 App shell: navigation, approvals badge, server status
 
-1. **Purpose (historic).** Actions backed by a viaSocket app action run through a stored, encrypted connection.
-2. **Status.** **Legacy.** `source = 'viasocket'` actions still execute (`execute.ts#runViaSocket` → `viasocket.ts#runAppAction`, decrypting `app_connection.script_id_enc` with `POC_ENCRYPTION_KEY`, filling `input_template` via `template.ts#renderTemplate`), and the Actions page can list/delete them, but **nothing in this repository creates** such actions or connections.
+- **Purpose.** Common frame for the admin screens.
+- **Business logic.** Left nav: Workflows, Playground, Approvals (red pulsing count of pending tasks, polled every 3 s),
+  Actions, Chatbot embed. `/` redirects to `/workflows`. The "Starting the server…" pill shows while F33 waits. Both are
+  hidden on `/embed*` pages. Design tokens and editor/canvas styles live in `globals.css`.
+- **Components.** `app/layout.tsx`, `app/page.tsx`, `components/nav.tsx`, `server-status.tsx`, `ui.tsx`, `globals.css`.
+- **Note.** Layout metadata still says "Workflow builder + durable runner + playground" (from the baseline).
+
+### F35 Unit tests
+
+- **Purpose.** Pin the pure rules.
+- **Business logic.** `npm test` compiles `test/` with `tsconfig.test.json` and runs `node --test`.
+  `engine.test.ts`: input formats and retry limit, custom retry text, rules (first match, `ref`, or, contains, empty,
+  not_empty), loops (visits, ask again, limit, keep answers), save response paths, action planning (not allowed,
+  disabled, bad args, approval, built-ins, never twice), settle, answering ahead, step cards. `map.test.ts`: numbering,
+  tools and saves, branch targets and loops, prompt text. Fixture: an "item return" canvas (`fixtures.ts`).
+- **Gaps.** No tests for `wf-tools.ts`, the inbox, agents, controllers, validation (`graph.ts`) or the web app.
 
 ---
 
 ## 9. API reference (summary)
 
-All routes are unauthenticated JSON unless noted.
+All routes are unauthenticated JSON; errors are Nest's `{statusCode, message}` (validation adds `issues`).
 
-| Method | Path | Feature | Purpose |
-|---|---|---|---|
-| GET | `/workflows` | F1 | List non-archived workflows |
-| POST | `/workflows` | F1 | Create (empty Start group) |
-| GET | `/workflows/:id` | F1/F3 | Draft + validation |
-| PUT | `/workflows/:id` | F1 | Save draft (`row_version`) |
-| PATCH | `/workflows/:id` | F1 | Enable/disable |
-| DELETE | `/workflows/:id` | F1 | Archive |
-| POST | `/workflows/:id/publish` | F4 | Publish new version |
-| GET | `/variables` | F2 | Built-in variables (also the web wake-up probe) |
-| GET | `/actions` | F6 | List actions (also Render health check) |
-| GET | `/actions/:key` | F6 | One action |
-| GET | `/actions/:key/sample` | F18 | Last successful response |
-| PATCH | `/actions/:key` | F6 | Enable, approval, rename, details |
-| DELETE | `/actions/:key` | F6 | Delete viaSocket action |
-| POST | `/actions/from-flow` | F7 | viaSocket flow event → action |
-| GET | `/integrations/builder-token` | F7 | Builder embed token |
-| GET/POST | `/conversations` | F9 | List / create |
-| GET | `/conversations/:id` | F9/F26/F27 | Full chat state (poll) |
-| POST | `/conversations/:id/messages` | F9 | Customer message → inbox |
-| POST | `/conversations/:id/team-messages` | F9 | Team message |
-| POST | `/attachments` | F10 | Upload (base64) |
-| GET | `/attachments/:id` | F10 | Download (binary) |
-| GET | `/ai-calls/:id` | F27 | One model call with trace |
-| POST | `/runs/:id/:op` | F22 | pause / resume / cancel / retry |
-| GET | `/approvals?status=` | F20 | Tasks with customer and workflow names |
-| POST | `/approvals/:id/decide` | F20 | Approve / reject |
-| POST | `/widget/conversations` | F28 | Start widget chat |
-| GET | `/widget/conversations/:id` | F28 | Customer-safe chat view |
-| POST | `/widget/conversations/:id/messages` | F28 | Widget customer message |
-| * | `/dev/*` | F30 | Dev only (`DEV_ENDPOINTS=1`) |
+| Method & path | Purpose | Feature |
+|---|---|---|
+| `GET /workflows` | List active workflows | F1 |
+| `POST /workflows` `{name?}` | Create with an empty Start group | F1 |
+| `GET /workflows/:id` | Workflow + `validation` | F1, F4 |
+| `PUT /workflows/:id` `{name, when_to_use, graph?, row_version}` | Save draft (409 on conflict) | F1 |
+| `POST /workflows/:id/publish` | Copy draft to published (400 with issues) | F5 |
+| `PATCH /workflows/:id` `{enabled}` | Enable or disable | F1 |
+| `DELETE /workflows/:id` | Archive | F1 |
+| `GET /variables` | Built-in variables (also the wake-up probe) | F3, F33 |
+| `GET /actions` | All actions | F7 |
+| `GET /actions/:key` · `GET /actions/:key/sample` | One action · its last successful result | F7, F19 |
+| `PATCH /actions/:key` `{enabled?, requires_approval?, new_key?, name?, description?}` | Switches and details | F7 |
+| `DELETE /actions/:key` | Remove a viaSocket tool | F7 |
+| `POST /actions/from-flow` | viaSocket flow event → action | F8 |
+| `GET /integrations/builder-token` | Signed builder token | F8 |
+| `GET /conversations` · `POST /conversations` | List (with run status, last text, pending approvals) · create | F10, F26 |
+| `GET /conversations/:id` | Messages, runs, events, approvals, action runs, AI usage | F26, F27, F28 |
+| `POST /conversations/:id/messages` `{text?, attachment_ids?}` | Customer message → inbox | F10 |
+| `POST /conversations/:id/team-messages` `{text}` | Teammate message (doesn't wake the run) | F10 |
+| `POST /attachments` · `GET /attachments/:id` | Upload (base64, ≤ 5 MB) · download | F11 |
+| `GET /ai-calls/:id` | One model call with trace | F28 |
+| `POST /widget/conversations` · `GET /widget/conversations/:id` · `POST /widget/conversations/:id/messages` | Widget chat | F29 |
+| `POST /runs/:id/:op` | pause, resume, cancel, retry | F23 |
+| `GET /approvals?status=` · `POST /approvals/:id/decide` | Approval queue · decide | F21 |
+| `/dev/*` (6 routes) | Dev-only tools | F31 |
 
 ---
 
 ## 10. Run lifecycle
 
-Statuses (`types.ts#RunStatus`); active = running, waiting_customer, waiting_approval, paused, failed (one per conversation).
-
 ```mermaid
 stateDiagram-v2
-  [*] --> running: start_workflow / switch
+  [*] --> running: start_workflow / switch_workflow
   running --> waiting_customer: turn ends (markWaiting)
-  waiting_customer --> running: customer message (tools move it)
-  running --> waiting_approval: call_action needs approval / request_approval
+  waiting_customer --> running: next tool move
+  running --> waiting_approval: call_action on a "Needs approval" action / request_approval
+  waiting_customer --> waiting_approval: call_action in a later turn
   waiting_approval --> running: decision applied
   waiting_approval --> failed: approved action failed
-  failed --> running: retry
-  running --> paused: pause
-  waiting_customer --> paused: pause
-  waiting_approval --> paused: pause
-  paused --> running: resume (restores previous state)
+  failed --> running: Retry step
+  running --> paused: Pause
+  waiting_customer --> paused: Pause
+  waiting_approval --> paused: Pause
+  paused --> running: Resume (restores previous status)
+  paused --> waiting_customer: Resume
+  paused --> waiting_approval: Resume
   running --> completed: no block left
-  running --> escalated: hand-off / escalate_to_human / 3 bad answers / loop limit
+  running --> escalated: hand-off · escalate_to_human · loop limit · 4th invalid answer
   waiting_approval --> escalated: approval timeout
-  waiting_customer --> expired: no reply before expiry
-  running --> cancelled: cancel / switched workflow
+  waiting_customer --> expired: customer silent past EXPIRE_AFTER_SEC
+  running --> cancelled: Cancel · switch_workflow
+  waiting_customer --> cancelled
+  waiting_approval --> cancelled
+  paused --> cancelled
+  failed --> cancelled
   completed --> [*]
   escalated --> [*]
   expired --> [*]
   cancelled --> [*]
 ```
 
-Note: during a turn the tools leave the run `running`; `markWaiting` flips it to `waiting_customer` afterwards. The
-diagram omits that the tools also accept moves while the run is `waiting_customer` (only ended and `waiting_approval`
-runs are refused by `active()`; ⚠ paused runs are not refused by `active()`, but `customerTurn` never delegates while paused).
+Active statuses (`types.ts#ACTIVE`): `running`, `waiting_customer`, `waiting_approval`, `paused`, `failed`. At most
+one active run per conversation (partial unique index). Ending a run sets `ended_at` and `end_reason`; pending approval
+tasks become `cancelled` (or `expired` on approval timeout).
 
 ---
 
@@ -1149,97 +1266,126 @@ runs are refused by `active()`; ⚠ paused runs are not refused by `active()`, b
 ### 11.1 Security (POC by design, but worth listing)
 
 - **No authentication or authorization** on any route; CORS is the only browser-side restriction (README: "no auth").
-- Unverified identities: approvals and controls take `by` from the client; widget customers self-declare their email.
-- Sensitive data readable by id or in bulk: conversations, attachments, AI traces (`/ai-calls/:id`), action samples, `via_flow_url` (a credential) in `GET /actions`.
-- `POST /actions/from-flow` lets any caller register or overwrite tools.
+- Client-supplied identities: approval and control `by` fields; widget customers self-declare name and email.
+- Data readable by id or in bulk: conversations, attachments, AI traces (`/ai-calls/:id`), action samples, and
+  `via_flow_url` (a credential) in `GET /actions`.
+- `POST /actions/from-flow` lets any caller register or overwrite tools; `POST /attachments` accepts any conversation id.
 
 ### 11.2 Single-process assumptions
 
-- `inbox.ts#draining` (one drain per conversation), `wf-tools.ts#serial` (one move per run) and `agents.ts#agents` (agent cache) are in-memory. Running more than one API instance breaks per-conversation ordering and cache freshness. The DB guards that remain: `FOR UPDATE SKIP LOCKED` on event claim, unique active-run index, unique idempotency key, unique pending-approval index.
+`inbox.ts#draining` (one drain per conversation), `wf-tools.ts#serial` (one move per run), `agents.ts#agents` (agent
+cache) and the `setInterval` sweeper are in memory. A second API instance would break per-conversation ordering and run
+two sweepers. Database guards that remain: `for update skip locked` on event claim, the unique active-run index, the
+unique idempotency key, the unique pending-approval index.
 
-### 11.3 Reliability
+### 11.3 Reliability and correctness
 
-- Long external call inside a DB transaction (F8) with a pool of 10.
-- Crash mid-turn → event retried at boot; tool moves are idempotent, but a reply may be sent twice (⚠ Unverified).
-- Agent cache never invalidated (F13).
-- Local-disk attachments on an ephemeral host (§7).
+| Risk | Evidence | Feature |
+|---|---|---|
+| External tool call inside a DB transaction (up to 60 s) with a pool of 10 | `execute.ts`, `db.ts` | F9 |
+| Customer replies that move nothing don't re-arm reminder/expiry | `agents.ts#markWaiting` only acts on `running` | F22 |
+| Rules condition with no Else and no match can't be passed | `wf-tools.ts#wfChooseCase`, `engine.ts#chooseByRules`, `graph.ts` | F17 |
+| Approval decided while the run is paused is lost; run later times out | `runs.controller.ts` ALLOWED pause on `waiting_approval`, `decideAgentApproval` guard | F21, F23 |
+| Resume doesn't answer messages received while paused | `controlAgentRun` returns `turn:false` on resume | F23 |
+| Supervisor `hand_off` without an active run doesn't silence the bot | `agents.ts#customerTurn` checks only the last run | F24 |
+| Deleting an action checks the draft only | `actions.controller.ts#remove` | F7 |
+| Moves allowed on `failed` runs (possible duplicate approval) | `wf-tools.ts#active` | F15 |
+| Agent cache never evicted; approval hints stale | `agents.ts#workflowAgent` | F6, F14 |
+| Duplicate active workflow name → generic 500 | unique index `workflow_name_active` | F1 |
+| `/dev/llm/probe` reads a dropped column | `dev.controller.ts` vs `0016` | F31 |
+| Crash mid-turn re-runs the event (⚠ Unverified whether a reply can be sent twice) | `inbox.ts#startInbox` | F12 |
+| Attachments on local disk on an ephemeral host (⚠ Unverified) | `playground.controller.ts`, `render.yaml` | F11 |
+| Images never reach the model; evidence cards show no photos | `agents.ts#history`, `wf-tools.ts#wfCallAction` | F11, F21 |
 
 ### 11.4 Duplicated functionality
 
 | Duplicated logic | Places |
 |---|---|
-| Graph types, `RULE_OPS`, `INPUT_FORMATS`, `MAX_VISITS`, step limit, `graphStepCount` | `server/src/types.ts`, `server/src/config.ts`, `server/src/workflows/graph.ts` ↔ `web/src/lib/graph.ts` |
-| Inline text type and rendering | `server/src/types.ts`, `workflows/inline.ts` ↔ `web/src/lib/inline.ts`, `inline-text.tsx` |
-| Loop detection | `graph.ts#cycles` (Tarjan, groups) ↔ `web/src/lib/graph.ts#loopEdges` (BFS, edges) |
-| Active-status list | `types.ts#ACTIVE`, literal list in `wf-tools.ts#wfStart`, `runs.controller.ts#ALLOWED`, `web/src/components/run-panel.tsx#ACTIVE`, migration index |
-| Rule/case text | `engine.ts#stepCard`, `map.ts#ruleText`, `web/src/lib/graph.ts#ruleText` |
-| Run-ending logic | `wf-tools.ts#commit` vs direct SQL in `inbox.ts#timerTurn` (different approval-task handling: `cancelled` vs `expired`) |
-| Agent map | stored `workflow_version.agent_map` (only read by `/dev`) vs rebuilt in `agents.ts#workflowAgent` |
+| Graph types, `RULE_OPS`, `INPUT_FORMATS`, `MAX_VISITS`, step limit, `graphStepCount` | `server/src/types.ts`, `config.ts`, `workflows/graph.ts` ↔ `web/src/lib/graph.ts` |
+| Inline text type and rendering | `server/src/types.ts`, `workflows/inline.ts` ↔ `web/src/lib/inline.ts`, `components/inline-text.tsx` |
+| Loop detection | `graph.ts#cycles` (Tarjan over groups) ↔ `web/src/lib/graph.ts#loopEdges` (BFS per edge) |
+| Active-status list | `types.ts#ACTIVE`, literal list in `wf-tools.ts#wfStart`, `runs.controller.ts#ALLOWED`, `run-panel.tsx#ACTIVE`, the migration index |
+| Rule and case text | `engine.ts#stepCard`, `map.ts#ruleText`, `web/src/lib/graph.ts#ruleText` |
+| Ending a run | `wf-tools.ts#commit` vs direct SQL in `inbox.ts#timerTurn` (different task status: `cancelled` vs `expired`) |
 | Message + attachments query | `playground.controller.ts#get`, `widget.controller.ts#get`, `runner/context.ts#loadTranscript` |
-| Money formatting | `engine.ts#money`, `web/src/lib/api.ts#money` |
+| Published-workflow filter (`enabled and archived_at is null and published_graph is not null`) | `agents.ts#customerTurn`, `wf-tools.ts#wfStart`, `#wfSwitchWorkflow` |
 
 ### 11.5 Tight coupling
 
-- `agents.ts` imports `wf-tools.ts` and vice versa via shared types; `inbox.ts` ↔ `agents.ts` import each other (`inbox` calls turns; `agents` exports `send` used by `inbox`).
-- `run-timeline.tsx` hard-codes the server's `run_event.type` strings and `data` shapes; there is no shared contract.
-- The approvals UI expects `evidence.attachment_ids` / `evidence.reason` that the agent path doesn't write (F20).
+- Call chain without interfaces: `playground/conversations.ts` and `runner/runs.controller.ts` → `agents/inbox.ts` →
+  `agents/agents.ts` → `agents/wf-tools.ts` → `engine/engine.ts`. `inbox.ts` imports `send` from `agents.ts` for timer
+  texts. There is no circular import.
+- `run-timeline.tsx` hard-codes the server's `run_event.type` strings and `data` shapes; no shared contract.
+- The approvals UI and `GET /approvals` expect `evidence.attachment_ids` / `evidence.reason`, which the agent path
+  doesn't write.
+- `workflows.service.ts#needsApproval` is imported by agents and dev code, coupling the agent prompt to the workflows module.
 
 ### 11.6 Legacy and dead code
 
 | Item | Evidence |
 |---|---|
-| `workflow.steps`, `workflow_version.steps` (list form) | Always `[]`; comment in `workflows.service.ts` |
-| `workflow.template`, `app_setting` table, `action_run.mode = 'test'` | Never referenced by code |
-| `action.kind` | Written (`'write'`) for new viaSocket tools, never read |
-| `engine = 'runner'` runs | Rejected by `active()`; sweeper only looks at `engine = 'agent'` |
-| `facts.collected` / `collectedBy` | Seeded with name/email; read as fallback only |
-| `source = 'viasocket'`, `app_connection`, `POC_ENCRYPTION_KEY` | F34 |
-| `source = 'mock'` in check constraint | Mock rows deleted in 0009 |
-| Mastra `Memory` | Only the dev probe agent uses it |
-| Canvas `readOnly` / `highlight` props | No page passes them |
-| Timeline cases for `error`, customer `waiting`, `input_invalid` "not an answer" | Not emitted by agent code |
-| Comment "Stage 2 replaces this with the per-ticket inbox lock" in `wf-tools.ts#serial` | Both mechanisms exist |
-| Root layout metadata "Workflow builder + durable runner + playground" | Describes the runner baseline |
+| `action_run.mode = 'test'` | Allowed by the check constraint, never written |
+| `facts.collected` seed, `facts.since`, `facts.previous`, `facts.asked`, `facts.collectedBy` | §5.3 |
+| `flowOf` "no canvas graph" error, `varsFor` fallback "older runs used facts.collected" | `graph` is `not null` since `0016` |
+| `wf_switch_workflow` Mastra tool | Only reachable through `/dev` |
+| Mastra `Memory` and `Mastra` instance | Only the dev probe agent |
+| Canvas `readOnly` / `highlight` props; `StepEditor` `onEnter` / `onBackspaceEmpty` / `onCondition` | No caller passes them |
+| Timeline cases `error`, customer `waiting`, "not an answer" `input_invalid` | Not emitted by agent code |
+| Approval evidence fields (`attachment_ids`, `reason`) | Never written on the agent path |
+| AI call dialog text "made before full requests were recorded" | Only for rows from before `0015` |
+| Comments: `wf-tools.ts#serial` "Stage 2 replaces this…", `mastra.ts` "Not connected to customers yet" | Both mechanisms exist / agents are connected |
+| Root layout metadata "durable runner"; tool dialog `META.createFrom = 'workflows-poc'` | Baseline names |
 
 ---
 
 ## 12. Verification against the repository
 
-**Method.** Every server source file (`server/src/**`), every migration, the setup script, tests, `render.yaml`,
-`README.md`, `.env.example` files and every web route and component were read before writing; the feature inventory
-was then cross-checked against the controller list in `app.module.ts`, the routes under `web/src/app`, and the tables
-created by the migrations.
+**Method.** Every server source file (`server/src/**`), all migrations, the setup script, the tests, `render.yaml`,
+`README.md`, both `.env.example` files, every web route and every component were read before writing. File modification
+times showed that the previous edition of this document (2026-10-13) predates changes to 29 source and config files, including migrations
+`0016` and `0017`; this edition replaces it.
+
+**Changes from the previous edition**
+
+- "Publishing and versioning" → **F5 Draft and published copy** (no `workflow_version`, runs keep their own graph).
+- "Legacy viaSocket app actions" removed: `runAppAction`, `app_connection` and `source = 'viasocket'` no longer exist.
+- Stored agent map, `workflow.steps`, `template`, `app_setting`, `engine = 'runner'`, `action.kind`, money formatting
+  removed from the legacy list (gone from code and schema).
+- New: F3 (text editor and variables) and F34 (app shell) split out; new risks in §11.3 (timers, rules without Else,
+  approval during pause, delete check, dev probe column).
 
 **Coverage check**
 
 | Source of truth | Items | Covered by |
 |---|---|---|
-| Nest controllers (`app.module.ts`) | Workflows, Actions, Integrations, Playground, Widget, Runs, Dev | F1–F4, F6–F7, F9–F10, F20, F22, F27–F28, F30 |
-| Web routes (`web/src/app`) | `/`, `/workflows`, `/workflows/[id]`, `/actions`, `/approvals`, `/playground`, `/chatbot`, `/embed`, `/embed-demo` | F1, F2, F6, F20, F25, F28 (`/` redirects to `/workflows`) |
-| Tables | All 14 app tables + `schema_migrations` | §5 |
-| `ticket_event.kind` values | customer_message, approval_decided, timer, control | F11, F20–F22 |
-| Agent tools | start_workflow, switch_workflow, delegate_to_workflow, hand_off, wf_save_input, wf_choose_case, wf_complete_step, call_action, wf_handoff, wf_yield, wf_switch_workflow | F12–F16, F23 |
-| Block types | step, bubble, input (4 formats), condition (ai, rules) | F2, F15–F19 |
+| Nest controllers (`app.module.ts`) | Workflows, Actions, Integrations, Playground, Widget, Runs, Dev | F1, F3–F5, F7–F8, F10–F11, F19, F21, F23, F28–F29, F31 |
+| Web routes (`web/src/app`) | `/`, `/workflows`, `/workflows/[id]`, `/actions`, `/approvals`, `/playground`, `/chatbot`, `/embed`, `/embed-demo` | F1, F2, F7, F21, F26, F29, F34 |
+| Web components | canvas/* (6), step-editor, viasocket-panel, run-panel, run-timeline, tool-call, ai-call, json-view, inline-text, nav, server-status, ui | F2, F3, F8, F19, F21, F27, F28, F34 |
+| Tables after `0017` | 11 app tables + `schema_migrations` | §5.2 |
+| `ticket_event.kind` | customer_message, approval_decided, timer, control | F12, F21–F23 |
+| Agent tools | start_workflow, switch_workflow, delegate_to_workflow, hand_off, wf_save_input, wf_choose_case, wf_complete_step, call_action, wf_handoff, wf_yield, wf_switch_workflow | F13–F17, F24 |
+| Block types | step, bubble, input (4 formats), condition (ai, rules) | F2, F16–F20 |
+| Env variables | All in `config.ts`, `viasocket.ts`, `playground.controller.ts`, `next.config.ts`, `api.ts` | §6 |
 
 **Not verifiable from the code alone**
 
-- Exact behaviour of viaSocket's embed events and payload shapes (taken from how the code consumes them).
-- Tables Mastra creates in the `mastra` schema.
+- Exact viaSocket embed events and payload shapes (documented as the code consumes them).
+- Which tables Mastra creates in schema `mastra`.
 - Why migration `0008` is absent.
-- Whether Render's free plan keeps the uploads folder.
-- Whether duplicated replies occur after a crash mid-turn.
-- Model pricing accuracy (`prices.ts` cites the OpenAI pricing page, checked 2026-10-13).
+- Whether Render's free plan keeps the `uploads/` folder.
+- Whether a crash mid-turn can send a reply twice.
+- Accuracy of `prices.ts` (cites the OpenAI pricing page, checked 2026-10-13) and the model name `gpt-6-luna`.
 
-**Planned, not implemented** (from `docs/agent-workflows-full-plan.html` and `README.md`)
+**Planned, not implemented** (`docs/agent-workflows-full-plan.html`, `README.md`)
 
-- Evals harness (scripted chats, pass^5, invalid-move counts). Only `move_rejected` logging exists.
-- `ticket_timer` table (timers are derived from `workflow_run.waiting_for` instead).
+- Evals harness (scripted chats, pass^k, invalid-move counts); only `move_rejected` logging exists.
+- `ticket_timer` table (timers derive from `workflow_run.waiting_for` instead).
 - Langfuse or other tracing beyond `llm_usage.trace`.
 - GTWY pass-through model endpoint (the `openai-compatible` provider is ready for it).
 - Spending limits per conversation.
-- Draft-reply mode, multi-tenant (`org_id`), authentication, Mongo `run_events`.
+- Authentication, multi-tenant `org_id`, draft-reply mode, Mongo `run_events`.
 
 **Insufficiently documented areas (by design of this document)**
 
 - Prompt wording (`prompts.ts`) and exact step-card JSON: read the source.
-- Canvas UI micro-interactions (handle placement, drop lines): `canvas.tsx`, `group-card.tsx`.
+- Canvas micro-interactions (handle placement, drop lines, card measuring): `canvas.tsx`, `group-card.tsx`.

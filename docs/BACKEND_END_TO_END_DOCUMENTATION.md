@@ -288,6 +288,8 @@ After 0009 and 0016, the only seeded actions left are the two builtins, `request
 | `approval_task.evidence` | object | Current code writes `{facts: run.facts.outputs}` (`wf-tools.ts:192-193`) |
 | `llm_usage.trace` | object | `{rounds[{round, request, response{text, tool_calls, tool_results, finish_reason, usage}}], final_text}` (`usage.ts:37-53`) |
 
+Constants used in validation: `RULE_OPS` (`types.ts:11`: `=`, `!=`, `contains`, `>`, `<`, `empty`, `not_empty`) and `INPUT_FORMATS` (`types.ts:14`: `text`, `email`, `number`, `phone`). Both are checked by `validateGraph`.
+
 ### 3.4 Feature → table map
 
 | Feature | Reads | Inserts | Updates | Deletes |
@@ -309,7 +311,7 @@ After 0009 and 0016, the only seeded actions left are the two builtins, `request
 ```mermaid
 flowchart LR
   E[Canvas editor PUT /workflows/:id] -->|graph, when_to_use, action_keys| D[(workflow draft columns)]
-  D -->|POST publish, after validateGraph passes| P[(workflow published_* columns)]
+  D -->|POST publish, after validateGraph passes| P[(workflow published columns)]
   P -->|startAgentRun copies published_graph| R[(workflow_run.graph)]
   R --> F[engine.flowOf - Flow]
   R --> M[map.buildMap - prompt text]
@@ -343,6 +345,7 @@ Movement (`graphFlow`):
 | `shownVars(declared, vars)` | `:72` | Declared but empty variables render as `''`, not `{{name}}` |
 | `ruleValues(facts, vars)` | `:75` | `{...facts.collected, ...vars, ...facts.vars}`: what rules compare |
 | `renderInline(content, vars)` | `workflows/inline.ts:4-9` | `@action` → `` `key` ``. `{{var}}` → value, or a literal `{{key}}` if unknown |
+| `stepActions(content)` | `workflows/inline.ts:11-13` | The `@action` keys an AI step mentions. Used by `planCall`, `completeError`, `stepCard`, `buildMap` and `wfCallAction` |
 
 `startAgentRun` seeds `facts.collected = {customer_name, email}` (`wf-tools.ts:256`).
 
@@ -513,7 +516,7 @@ Returns `{issues: string[], action_keys, step_count}`. The rules, in order:
 Files: `actions/actions.controller.ts`, `actions/execute.ts`, `integrations/viasocket.ts`.
 
 ### 7.1 Read endpoints
-- `GET /actions` (`:32`): `select * from action order by source, created_at, key`. Exposes `via_flow_url`, which the code itself calls credential-like (Risk/security §23).
+- `GET /actions` (`:32`): `select * from action order by source, created_at, key`. It exposes `via_flow_url`, which the code itself treats as a credential (§23).
 - `GET /actions/:key/sample` (`:35-40`): newest `action_run` with `status='succeeded'` and non-null `result` for the key. Returns `{result|null, at|null}`. Used by the "Save response" field picker.
 - `GET /actions/:key` (`:42-47`): 404 if missing.
 
@@ -539,7 +542,7 @@ Called by the web viaSocket panel when the builder posts a window message (`web/
 
 ```mermaid
 flowchart TD
-  A[POST /actions/from-flow body FlowEvent] --> B{id present and webhookurl matches https://flow.sokt.io/func/ID}
+  A[POST /actions/from-flow body FlowEvent] --> B{id present and webhookurl matches the flow.sokt.io func URL pattern}
   B -- no --> E400[400 not a viaSocket flow event]
   B -- yes --> C[select action where via_flow_id = id]
   C --> D{action or status is deleted or delete}
@@ -548,12 +551,12 @@ flowchart TD
   D1 -- yes --> D2{used in any non-archived workflow draft action_keys}
   D2 -- yes --> DIS[update enabled = false] --> OK2[ok, key, removed false]
   D2 -- no --> DEL[delete action] --> OK3[ok, key, removed true]
-  D -- no --> S[schema = toSchema openaiToolJson.function.parameters or mcpToolJson.inputSchema or payload keys]
-  S --> T[description = tool.description or f.description or f.title or default]
+  D -- no --> S[schema = toSchema of openaiToolJson parameters, or mcpToolJson inputSchema, or payload keys]
+  S --> T[description = tool description, or f.description, or f.title, or a default]
   T --> U[enabled = status and action are not paused]
   U --> V{existing action?}
   V -- yes --> UPD[update input_schema, via_flow_url, enabled. name and description only if details_edited is false] --> RET1[return action]
-  V -- no --> K[freeKey from tool.name or title] --> INS[insert source viasocket_flow, requires_approval TRUE, builtin false] --> RET2[return action]
+  V -- no --> K[freeKey from tool name or title] --> INS[insert source viasocket_flow, requires_approval TRUE, builtin false] --> RET2[return action]
 ```
 
 - `toSchema` (`:14-18`) keeps only `type` (default `string`) and `description` per property. `required` is filtered to known properties. With no schema it infers `number` or `string` from the sample payload values.
@@ -736,3 +739,895 @@ and **no** `timer` event pending or working for the conversation. Each one gets 
 
 ### 10.5 `startInbox()` (`:93-98`)
 On boot it resets `working → pending`, so events cut off by a restart run again (**at-least-once**). It kicks every conversation with pending events and starts the sweeper interval. The first sweep happens about 30 s after boot. There is no guard against overlapping sweeps. Overlaps are harmless because `timerTurn` re-checks state.
+
+---
+
+## 11. Module: Agents
+
+Files: `agents/agents.ts`, `agents/prompts.ts`, `agents/tools.ts`, `agents/mastra.ts`, `agents/usage.ts`.
+
+### 11.1 The `Turn` object (`agents.ts:24-25`)
+`{conversationId, messageId|null, runId|null, delegated, yielded?, seenId?}` is stored in a Mastra `RequestContext` under `'turn'`. It is the **only channel** between the supervisor, its tools and the workflow agent:
+- `start_workflow` / `switch_workflow` change `turn.runId`, so later tool calls in the same turn act on the new run.
+- `tools.ts:7-11` (`runIdOf`) reads the run id from `turn.runId`, or from `requestContext.get('runId')` for `/dev`. **The model never supplies a run id.**
+
+### 11.2 `history(turn)` (`:29-37`)
+`loadTranscript` (`runner/context.ts:18-24`) returns non-system messages with attachments, oldest first. `history` then:
+- sets `turn.seenId` to the id of the newest customer message,
+- returns the **last 20** as AI SDK messages: `customer` → `user`; `bot` and `team` → `assistant`. `team` text is prefixed `[Teammate] `. Empty text becomes `(attachment)`. Attachments add ` [n attachment(s)]`. **The agents never see attachment contents.**
+
+### 11.3 Prompts (`prompts.ts`)
+- `BASE_PROMPT` (`:4-8`): voice, no unconfirmed promises, never mention tools or ids, follow `fix` on `ok:false`.
+- `supervisorPrompt(workflows, active)` (`:10-31`): lists published workflows (`id · name · when to use`), the active workflow description, and the routing rules (delegate with intent `answer`/`not_an_answer`/`off_topic`; switch ≥ 0.8; start ≥ 0.7; hand_off; clarify between 0.4 and 0.7; otherwise answer briefly).
+- `workflowPrompt(mapText)` (`:33-55`): workflow-agent rules plus the map text (§14).
+- `turnContext(...)` (`:58-66`): `INTENT`, `CURRENT STEP` (step card JSON), `PROGRESS`, `ACTIONS FOR THIS STEP`, `BUBBLES NOT SENT YET`. It is appended to the workflow prompt on each call.
+
+### 11.4 Supervisor (`:137-196`) and `customerTurn` (`:199-235`)
+
+Supervisor = `new Agent({id:'supervisor', instructions: BASE_PROMPT, model, tools: supervisorTools})`. The real instructions are passed per call.
+
+| Tool | Input (zod) | Behaviour |
+|---|---|---|
+| `start_workflow` | `{workflow_id, confidence, reason}` | `wfStart` (§12.6). On ok: `turn.runId = new run`, system note `Supervisor: started a workflow…`, and event `customer_message` on the new run. Returns `{ok:true, run_started:true}` or the ToolErr |
+| `switch_workflow` | same | Requires `turn.runId`. Calls `wfSwitchWorkflow`. On ok: `turn.runId` = new run, system note, event `customer_message` |
+| `delegate_to_workflow` | `{intent: answer\|not_an_answer\|off_topic, note?}` | Requires `turn.runId`. Allowed once per turn. Event `supervisor_delegated`, then **synchronously runs `workflowTurn`**. If the workflow agent yielded: resets `delegated=false` and returns `{ok:false, yielded, fix}`. Otherwise `{ok:true, delivered:true}` |
+| `hand_off` | `{reason}` | `wfHandoff(turn.runId)` if a run is active, then system note `Escalated to a human: …`. The supervisor then writes the sentence |
+
+```mermaid
+sequenceDiagram
+  participant D as inbox.drain
+  participant CT as customerTurn
+  participant DB
+  participant SUP as Supervisor agent
+  participant WT as workflowTurn
+  participant WA as Workflow agent
+  participant T as wf tools
+  D->>CT: conversationId, messageId
+  CT->>DB: active run (status in ACTIVE)?
+  alt no active run and latest run escalated
+    CT->>DB: system note - bot stays quiet
+    CT-->>D: undefined
+  else active run is paused
+    CT->>DB: event customer_message, system note - will reply after resume
+    CT-->>D: undefined
+  else
+    CT->>DB: event customer_message on active run, agentRunState for description
+    CT->>DB: enabled, non-archived, published workflows (published_when_to_use)
+    CT->>SUP: trackedGenerate(history, supervisorPrompt, maxSteps 6)
+    opt start or switch
+      SUP->>T: wfStart or wfSwitchWorkflow
+      T-->>SUP: ok, run_id (turn.runId updated)
+    end
+    opt delegate
+      SUP->>WT: delegate_to_workflow(intent, note)
+      WT->>WA: trackedGenerate(history, workflow prompt + turnContext, maxSteps 24)
+      WA->>T: wf moves
+      T-->>WA: step cards
+      WT->>DB: deliver reply, markWaiting
+      WT-->>SUP: delivered or yielded
+    end
+    SUP-->>CT: final text
+    CT->>DB: event supervisor_replied (if a run is set)
+    alt delegated
+      CT-->>D: seenId
+    else text and a newer customer message exists
+      CT->>DB: system note - supervisor reply dropped
+    else
+      CT->>DB: send(text) as bot, system note - replied directly
+    end
+    CT-->>D: seenId
+  end
+```
+
+Notes:
+- Escalated conversations stay silent **forever**. Nothing in the code resets this. Teammates can still post `team` messages.
+- `hand_off` with **no active run** writes only a note. No run becomes `escalated`, so the bot keeps answering later messages.
+- The `Supervisor: replied directly` note is written even when the supervisor produced no text (`:233`).
+- `maxSteps: 6` caps the supervisor's tool rounds. Whether Mastra 1.75 honours `maxSteps` / `instructions` / `activeTools` as generate options is **(unverified)**.
+
+### 11.5 Workflow agent: `workflowAgent(run)` (`:58-68`)
+- Cache key = `"<workflow_id>:<sha1(JSON graph)>"` in the in-process `agents` Map (never evicted).
+- On a miss it reads `when_to_use, published_when_to_use` from `workflow`, then calls `buildMap(run.graph, {name: run.workflow_name, whenToUse: published ?? draft ?? ''}, needsApproval())`. The prompt is `workflowPrompt(map.text)`.
+- Tools: `wf_save_input`, `wf_choose_case`, `wf_complete_step`, `call_action`, `wf_handoff` (from `tools.ts`), and **`wf_yield`** (defined in `agents.ts:42-52`). `wf_switch_workflow` exists in `tools.ts` but is **not** given to any agent. Only `/dev` can call it.
+
+### 11.6 `workflowTurn(rc, intent, note?)` (`:71-89`)
+1. Load `workflow_id, workflow_name, graph` of `turn.runId`, then get or build the agent.
+2. `s = agentRunState(runId)` (step card, actions, pending bubbles, plus **all** run events, which are loaded but unused here).
+3. `messages = history(turn)`. If there is no `messageId` (approval or control turns), it appends a synthetic user message: `(No new customer message. Continue the workflow and tell the customer what happened.)`.
+4. Event `agent_turn {agent, intent, note}`.
+5. `trackedGenerate(agent, messages, {agent:'workflow: <name>', conversationId, runId}, {instructions: prompt + turnContext, requestContext: rc, maxSteps: 24})`.
+6. Event `agent_replied {ms, tokens, usage_id}`.
+7. If `turn.yielded`, return. No reply, no `markWaiting`, and the bubbles stay pending.
+8. `deliver(turn, runId, text, agent)`, then `markWaiting(runId)`.
+
+`wf_yield` (`:42-52`): allowed once per turn. Sets `turn.yielded = reason`, event `yielded`, returns `{ok:true, note}`.
+
+### 11.7 `deliver` (`:97-118`): staleness and bubble enforcement
+
+```mermaid
+flowchart TD
+  A[deliver text] --> B{newerMessage: a customer message newer than seenId}
+  B -- yes --> DROP[event reply_dropped, return. outbox kept for the next turn]
+  B -- no --> C[pending = outbox texts]
+  C --> D{reply non-empty and some bubble missing from it}
+  D -- yes --> E[trackedGenerate same agent, agent label bubble-fix, BASE_PROMPT, no tools, maxSteps 1: rewrite to include lines] --> F[event bubble_fixed by rewrite]
+  D -- no --> G
+  F --> G{still missing}
+  G -- yes --> H[event bubble_fixed by server, append missing bubbles separated by blank lines]
+  G -- no --> I
+  H --> I{reply non-empty}
+  I -- yes --> S[send: insert bot message + event message_sent]
+  I -- no --> J
+  S --> J[update workflow_run outbox = empty]
+```
+
+- The check is `reply.includes(bubble)`: exact substring, case-sensitive.
+- `send(conversationId, runId, text)` (`:120-123`) is shared with the inbox timers and the supervisor.
+
+### 11.8 `markWaiting(runId)` (`:126-133`)
+It runs only when the run status is **`running`**. It sets `status='waiting_customer'` and `waiting_for = {type:'customer', node_id: next card id, expects: [card.collects.name] or [], remind_at: now+REMIND, expires_at: now+EXPIRE, reminded:false}`, guarded by `and status='running'`. If the turn made no successful move, the status is still `waiting_customer` and the **timers are not refreshed** (Risk R4).
+
+### 11.9 `controlTurn` (`:238-247`) and `approvalTurn` (`:250-258`)
+
+| Function | Steps |
+|---|---|
+| `controlTurn(conv, {runId, op, by})` | `controlAgentRun` (§12.9). If not ok: system note `<op> failed: <reason>`. If ok without `turn` (pause, resume, cancel): return. If `turn` (only a successful **retry**): `workflowTurn(intent 'resume', note 'A teammate retried the step that failed.')` |
+| `approvalTurn(conv, {runId, taskId, approved, by, note})` | `decideAgentApproval` (§12.8). If not ok: bot message `Sorry, I hit a problem on my side. A teammate will take a look and follow up.` and return. If ok: `workflowTurn(intent 'resume', note 'The team approved/rejected the request[: note].')` |
+
+Both create a `Turn` with `messageId: null` and `delegated: true`.
+
+---
+
+## 12. Module: wf tools
+
+Files: `agents/wf-tools.ts` (logic), `agents/tools.ts` (Mastra wrappers with zod schemas).
+
+### 12.1 Shared machinery
+
+| Helper | Lines | Behaviour |
+|---|---|---|
+| `serial(key, fn)` | 23-28 | Per-run promise chain in an in-process Map. One move at a time per run. The Map is never cleaned up |
+| `load(runId)` | 32-37 | `loadRun` (throws `run … not found`) + conversation → `{run (outbox copied), flow, base vars, declared}` |
+| `active(runId)` | 91-96 | Rejects terminal runs (`completed, escalated, expired, cancelled`) and `waiting_approval`. **Allows `running`, `waiting_customer`, `paused`, `failed`** (Risk R5) |
+| `ok(c, result?)` | 51-57 | Builds `ToolOk`: step card (null when terminal), `actions` arg specs from the `action` table, `say` = outbox texts |
+| `argSpec(action)` | 234-235 | `"order_id: string (required), amount: integer"`, or `no args`. Used in `ok()` and in `call_action` rejections |
+| `commit(c, s, events, result?)` | 64-76 | `current_node_id = s.end completed ? null : s.at`. `waiting_for = null`. `status = s.end?.status ?? 'running'`. `saveRun` (with `ended`, `end_reason`). Logs engine events (actor `system`). If ended: pending approval tasks → `cancelled`, plus event `run_completed` / `run_<status>`. Returns `ok()` |
+| `advance(c, from, jump, result?)` | 79-85 | `follow()`. `LIMIT` → end `escalated/loop_limit`. Otherwise `settle(to)` → `commit` |
+| `end(c, status, reason)` | 87-88 | `commit` with an end at the current node |
+| `notCurrent` | 98-101 | Reject with the current card's id, type and text in `fix` |
+| `logged(tool, fn)` | 106-112 | On `ok:false`: event `move_rejected {tool, reason, args}` |
+| `saveRun` | `runner/context.ts:26-32` | Overwrites `status, current_node_id, facts, waiting_for, outbox, paused_from, updated_at`, plus `ended_at` if `ended` and `end_reason` via `coalesce`. **No optimistic check.** Relies on `serial` and the inbox |
+
+### 12.2 `wf_save_input` → `wfSaveInput` (`:114-132`)
+Input `{input_id, value}`.
+1. `active()`.
+2. The node must be `ask`, else reject `<id> is not an input`.
+3. `input_id` must be the current node, or `reachableInput(flow, current, input_id)`: only bubbles and inputs between them. Else reject `can't be answered yet`.
+4. `checkAnswer(format, value)` (§13).
+   - **Invalid**: event `input_invalid`. `countAsk`. On the **4th** invalid answer (attempts > 3) the run ends `escalated` with reason `no valid answer after 3 tries`. Otherwise `saveRun` (attempts) and reject with `fix: Ask again: <retry text>`.
+5. `saveAnswer` sets `facts.vars[saveAs]`, `varsBy`, `outputs[node]`, and clears `asked`. Event `input_received`.
+6. If it is a later input: `saveRun` and return `ok` without moving. **The run does not skip it automatically.** When the run reaches it, the card shows `answered` and the agent must call `wf_complete_step` (§12.4). The code comment at `:130` says "the engine skips that input later", which is inaccurate.
+7. If it is the current input: `advance(current, flow.next(current))`.
+
+### 12.3 `wf_choose_case` → `wfChooseCase` (`:134-148`)
+Input `{condition_id, case_id, reason}`.
+1. `active()`. It must be the current node and a `branch`, else `notCurrent`.
+2. `case_id` must be one of the condition's cases.
+3. **Rules mode**: `chooseByRules(node, ruleValues(...))`. If the result differs from the agent's pick, reject `The rules pick <id> (<reason>)` with `fix: Choose <id>`. If no case matches and there is no `else`, every pick is rejected and the run cannot pass the condition (Risk R7).
+4. `recordCase`, event `case_chosen`, `advance(node, flow.afterCase(node, case_id))`.
+
+### 12.4 `wf_complete_step` → `wfCompleteStep` (`:150-173`)
+Input `{step_id, summary}`. Requires the current node.
+
+| Node type | Behaviour |
+|---|---|
+| `branch` | Reject `use wf_choose_case` |
+| `say` (bubble) | `bubbleText`. If non-empty, push `{text, verbatim:true, nodeId}` to the outbox. Event `step_completed`. Advance |
+| `ask` | Reject `<saveAs> is not saved yet` unless `node.id in facts.outputs`. Else event and advance |
+| `step` | `completeError`: if the step mentions an action and `step.id` is not in `outputs`, reject `step completed without calling its action` (`fix: Call <actions> first.`). Else event `step_completed {summary}` and advance |
+
+`completeError` only checks that `outputs[step]` exists. A pending or approved-then-failed approval (`{approval_task_id}`) counts as "called" (Risk R5).
+
+### 12.5 `call_action` → `wfCallAction` (`:175-209`)
+Input `{action_key, args?}`.
+
+```mermaid
+flowchart TD
+  A[call_action key, args] --> B{active run}
+  B -- no --> R0[reject]
+  B -- yes --> C{current node is an ai step}
+  C -- no --> R1[reject: not an AI step]
+  C -- yes --> D[action = getAction if the step mentions the key, else null]
+  D --> E[planCall: allowed, enabled, validateArgs]
+  E -- error --> R2[reject with arg spec or allowed list]
+  E -- ok --> F{ranOutput: outputs exist and are not an approval marker}
+  F -- yes --> OK0[ok result already_ran + output, no new call]
+  F -- no --> G[event action_called]
+  G --> H{plan.kind}
+  H -- escalate --> ESC[end run escalated, reason = args.reason]
+  H -- evidence or approval --> T[openTask kind evidence or action, evidence = facts.outputs]
+  T --> T2[outputs at node = approval_task_id, status waiting_approval, waiting_for approval with due_at, saveRun, event waiting] --> OK1[ok result waiting team approval, task_id]
+  H -- run --> X[executeAction mode auto, visit = visitOf]
+  X --> X1[event action_result]
+  X1 --> X2{res.ok}
+  X2 -- no --> R3[reject: key failed - error. Run state unchanged]
+  X2 -- yes --> X3[outputs at node = result, keep: saveResponse into vars + event response_saved, saveRun] --> OK2[ok result = action result]
+```
+
+- `call_action` does **not** advance the run. The agent must then call `wf_complete_step`.
+- A failed auto action leaves the run where it was. The `fix` is to try once more or hand off. A retry within the same visit reuses the idempotency key and updates `args` (§7.5).
+
+### 12.6 Starting runs: `wfStart` (`:242-249`) and `startAgentRun` (`:252-266`)
+`wfStart(conversationId, {workflow_id, confidence, reason})`:
+1. Reject if `confidence < 0.7` (`START_CONFIDENCE`).
+2. Reject if any run of the conversation is in the active set.
+3. Reject unless the workflow is enabled, not archived, and published.
+4. Call `startAgentRun`.
+
+`startAgentRun(conversationId, workflowId, reason)`:
+1. `published_graph, name` (reject if not published).
+2. Conversation → `facts = {collected:{customer_name, email}, outputs:{}, cases:{}, attempts:{}, visits:{}}`.
+3. `insert workflow_run (conversation_id, workflow_id, workflow_name, graph, current_node_id = flow.first(), facts)`. Status defaults to `running`. The partial unique index rejects a second active run with a Postgres error (thrown, not a ToolErr).
+4. Event `run_started {workflow, reason}`.
+5. `serial(newId)`: `settle(first)`, then `commit`. The status stays `running` at the first node, or the run is `completed` if the graph has no first item.
+
+### 12.7 `wf_handoff` (`:211-216`) and `wf_switch_workflow` (`:220-231`)
+- `wfHandoff`: reject if terminal (`paused`, `failed` and `waiting_approval` are accepted). Event `handoff`, then `end('escalated', reason || 'handoff')`.
+- `wfSwitchWorkflow`:
+  1. Reject if terminal, or if confidence < 0.8 (`SWITCH_CONFIDENCE`).
+  2. The target must be enabled, published and not archived, and different from the current workflow.
+  3. Event `workflow_switched`, then `end('cancelled', 'switched to <name>')`, then `startAgentRun(...)`.
+
+  These are two separate writes. If the start fails, the old run stays cancelled.
+
+### 12.8 Approvals: `decideAgentApproval` (`:269-280`) and `runApproved` (`:284-297`)
+
+```mermaid
+sequenceDiagram
+  participant I as inbox approvalTurn
+  participant D as decideAgentApproval
+  participant DB
+  participant X as executeAction
+  I->>D: runId, taskId, approved, by, note
+  D->>DB: load run
+  alt run not waiting_approval for this task
+    D-->>I: reject (customer gets the Sorry message)
+  else
+    D->>DB: select approval_task, event approval_decided (actor user:by)
+    alt kind action and approved
+      D->>X: execute(action_args from task, mode approved, taskId, visit)
+      alt failure
+        D->>DB: status failed, waiting_for null, saveRun, event run_failed
+        D-->>I: reject
+      else success
+        D->>DB: outputs at node = result, keep, status running, advance
+        D-->>I: ok approved true
+      end
+    else evidence kind, or rejected
+      D->>DB: outputs at node = approved, reviewed_by, reviewer_note
+      D->>DB: status running, advance to next node
+      D-->>I: ok approved
+    end
+  end
+```
+
+- A **rejected action** completes the step without running the action, and the flow moves to the **next** node. There is no separate rejected branch. The workflow agent then tells the customer.
+- The approved action runs with the **args stored on the task** (`approval_task.action_args`), not new model args.
+- `runApproved` looks up the action by `task.action_key`. If that action was renamed or deleted since, `getAction` returns null and `executeAction(null!)` throws a TypeError (Risk R8).
+
+### 12.9 `controlAgentRun(runId, op, by)` (`:300-332`)
+Common: reject if terminal. Event `signal {type: op (retry → retry_step), by}` with actor `user:<by>`.
+
+| op | Behaviour | `turn` |
+|---|---|---|
+| `cancel` | `end('cancelled', 'cancelled by <by>')`. Pending tasks cancelled. **No customer message** | — |
+| `pause` | Reject if already paused. `paused_from = {status, waiting_for}`, `status='paused'`, `waiting_for=null` | none |
+| `resume` | Reject unless paused. Restore `status` and `waiting_for` from `paused_from` (default `running`/null). `paused_from=null` | **`false`** → no agent turn (Risk R2) |
+| `retry` | Reject unless `failed`. Find `outputs[node].approval_task_id`. If that task is `approved` and kind `action`: `runApproved` again (same visit, so the same idempotency key re-runs the failed `action_run` with the task's args). Else set `status='running'` so the agent tries the step again | `true` on success |
+
+Restored timers can already be overdue after a resume. The next sweep then reminds or expires the run immediately.
+
+### 12.10 `agentRunState(runId)` (`:340-344`)
+Returns `ok()` plus `facts` and every `run_event` of the run. Used by `workflowTurn`, `customerTurn` (for the description), `markWaiting`, and `GET /dev/agent-runs/:id`.
+
+### 12.11 Mastra wrappers (`tools.ts:13-50`)
+
+| Tool id | zod input | Function | Given to |
+|---|---|---|---|
+| `wf_save_input` | `{input_id: string, value: string}` | `wfSaveInput` | workflow agent, dev |
+| `wf_choose_case` | `{condition_id, case_id, reason}` | `wfChooseCase` | workflow agent, dev |
+| `wf_complete_step` | `{step_id, summary}` | `wfCompleteStep` | workflow agent, dev |
+| `call_action` | `{action_key, args?: record}` | `wfCallAction` | workflow agent, dev |
+| `wf_handoff` | `{reason}` | `wfHandoff` | workflow agent, dev |
+| `wf_switch_workflow` | `{workflow_id, confidence, reason}` | `wfSwitchWorkflow` | **dev only** |
+| `wf_yield` (`agents.ts`) | `{reason}` | sets `turn.yielded` | workflow agent only |
+
+How Mastra reports a tool that **throws** (rather than returning `ok:false`) back to the model is **(unverified)**.
+
+---
+
+## 13. Module: Step engine
+
+File: `engine/engine.ts`. Pure: no I/O. Functions that take `facts` change it in place.
+
+| Function | Lines | Input → output | Notes |
+|---|---|---|---|
+| `graphFlow(g)` / `flowOf(v)` | 20-57 | graph → `Flow{first,node,next,afterCase}` | `flowOf` throws without a graph |
+| `varsFor`, `shownVars`, `ruleValues` | 62-75 | see §4.3 | |
+| `checkAnswer(format, raw)` | 82-100 | `{ok, value}` | empty → invalid. **email**: first `x@y.tld` match, lowercased. **number**: strips `,`, first `-?\d+(\.\d+)?` → Number. **phone**: keeps digits and `+`, must match `^\+?\d{7,15}$`. **text**: trimmed |
+| `RETRY` | 102-107 | per-format default retry text | used by `askText` |
+| `saveAnswer` | 110-115 | sets `vars`, `varsBy`, `outputs`, clears `asked` | |
+| `countAsk` | 118-121 | `attempts[node]++`, returns `> MAX_ASKS (3)` | |
+| `askText`, `bubbleText` | 124-127 | render prompt, retry or bubble | |
+| `test(rule, values)` (private) | 132-146 | bool | `=`/`!=`/`contains` are case-insensitive. `>`/`<` are numeric (`NaN` → false). `empty`/`not_empty` |
+| `chooseByRules(branch, values)` | 149-157 | `{case_id\|null, reason}` | first matching case (join `and` by default). `else` wins when reached |
+| `recordCase` | 159-161 | `facts.cases[node]` | |
+| `getPath(obj, path)` | 166-175 | value | `$` = whole. `a[0].b` / `a.0.b`. `.length` on arrays and strings |
+| `saveResponse(facts, node, save, output)` | 178-192 | `{saved, missing}` | writes `vars`, `varsBy` |
+| `validateArgs(action, raw)` | 195-209 | `{ok, args}` / error | drops empty values. `integer`: coerces digit strings, otherwise error. `string`: `String(v)`. **Other types (number, boolean, object) and extra keys pass through unchecked** |
+| `planCall(step, key, action, args)` | 216-224 | `CallPlan` | not mentioned → error. Action missing or disabled → `<key> is disabled`. `escalate_to_human` → `escalate`. `request_approval` → `evidence`. `requires_approval` → `approval`. Else `run` |
+| `ranOutput(facts, node)` | 227-230 | output or undefined | ignores `{approval_task_id}` markers. Uses the `in` operator, which throws on string or number outputs (Risk R10) |
+| `completeError(step, facts)` | 233-235 | message or null | |
+| `approvalTask(action)` | 238 | `{summary: action.name}` | |
+| `visitOf`, `rerun`, `follow` | 246-283 | see §4.4 | events `goto_jumped`, `goto_limit` |
+| `settle(at)` | 295-296 | `Settled` | `null` → `completed` |
+| `reachableInput(flow, from, target)` | 301-310 | bool | walks only through `say`/`ask`, at most 200 hops |
+| `stepCard(flow, id, shown, facts?)` | 324-342 | `StepCard\|null` | see §4.2 |
+
+---
+
+## 14. Module: Workflow map
+
+File: `engine/map.ts`. Pure.
+
+`buildMap(graph, {name, whenToUse}, needsApproval:Set)` (`:25-71`):
+1. Numbers groups breadth-first from `start`, following item (case) edges first, then the group exit edge. Unreachable groups are appended last and marked `(not reachable)`.
+2. Item refs are `"<group>.<n>"`. Edge targets are shown as an item ref or a group ref.
+3. `loops` = edges with `maxVisits` → `{from, to, maxVisits, fresh}`. `goes` adds ` (loop)` for such edges.
+4. Items:
+   - `ai_step` (text, `tools[{key, needsApproval}]`, `save[]`)
+   - `bubble`
+   - `input` (`collects`)
+   - `condition` (`mode`, `cases[{id, kind, when, goes}]`; rules `when` = `var op "value"`/`{{ref}}`, else the rendered condition, else `otherwise`)
+5. `then` = the group exit target, or `end`.
+
+`mapText` (`:74-95`) renders `WORKFLOW`, `When to use`, `WORKFLOW MAP`, one line per item with `[id]`, `then → …`, and `loop a → b: max n visits, ask again|keep answers`.
+
+Callers:
+- `workflowAgent` (prompt, built from the **run's** graph)
+- `GET /dev/workflows/:id/map` (built from `published_graph`)
+
+The map is **not stored**. `workflow_version.agent_map` was dropped in 0016.
+
+---
+
+## 15. Module: Runs and approvals API
+
+File: `runner/runs.controller.ts`, `runner/tasks.ts`.
+
+### 15.1 `POST /runs/:id/:op` — `control` (`:14-22`)
+- `op` must be in `ALLOWED` (`:6-9`), else 400 `unknown operation`:
+
+  | op | Allowed statuses at request time |
+  |---|---|
+  | `pause` | `running`, `waiting_customer`, `waiting_approval` |
+  | `resume` | `paused` |
+  | `retry` | `failed` |
+  | `cancel` | `running`, `waiting_customer`, `waiting_approval`, `paused`, `failed` |
+
+- 404 `run not found`. 400 `"<op>" is not allowed while the run is <status>`.
+- `enqueue(conversation_id, 'control', {runId, op, by: body.by || 'teammate'})` (awaited). Response `{ok:true}`.
+- The operation is applied **later** by the inbox (`controlTurn` → `controlAgentRun`), in order with agent turns. Status can change in between. `controlAgentRun` re-checks part of this (§12.9).
+
+### 15.2 `GET /approvals?status=pending` (`:24-32`)
+- `status` defaults to `pending`. `all` returns every status. Any other string filters by that exact status.
+- Join: `approval_task` + `conversation (customer_name, customer_email)` + `workflow_run (workflow_name)`.
+- `attachments` = attachments whose ids appear in `evidence->'attachment_ids'`. **Current code never writes `attachment_ids` into `evidence`** (`wf-tools.ts:192-193` writes `{facts}`), so this is always `[]` for new tasks (Risk R17).
+
+### 15.3 `POST /approvals/:id/decide` (`:35-43`)
+Body `{approved: boolean, note?, by?}`.
+1. Atomic `update approval_task set status = approved|rejected, decided_by = coalesce(by,'Team'), decided_at = now(), decision_note where id and status='pending' returning *`.
+2. No row → 404 `task not pending`. This makes the decision idempotent against double clicks.
+3. `enqueue(conversation_id, 'approval_decided', {runId, taskId, approved, by: decided_by, note})`.
+4. Returns the task row.
+
+The task is marked decided **before** the run accepts it. If `decideAgentApproval` later rejects (for example because the run was paused, Risk R9), the task stays approved/rejected but the run never applies it.
+
+### 15.4 `openTask(run, nodeId, t)` (`runner/tasks.ts:7-19`)
+- `due = now + APPROVAL_TIMEOUT_SEC`.
+- If a pending task exists for `(run_id, node_id)`, return its id (also enforced by the unique partial index).
+- Else insert `{run_id, conversation_id, node_id, kind, action_key, action_args, summary, evidence, due_at}`, then event `approval_requested {task_id, kind, summary}`.
+- `summary` = `approvalTask(action).summary` (the action's display name) for `kind:'action'`, or `args.summary` for `request_approval`.
+
+---
+
+## 16. Module: LLM usage and cost
+
+Files: `agents/usage.ts`, `agents/prices.ts`.
+
+| Function | Lines | Behaviour |
+|---|---|---|
+| `MODEL_PRICES` | `prices.ts:3-5` | `{'openai/gpt-6-luna': {input: 0.10, output: 0.50}}` USD per 1M tokens |
+| `priceOf(model, in, out)` | `usage.ts:10-13` | `(in·p.in + out·p.out)/1e6`, or `null` when the model is not listed |
+| `mastraModel()` | `:15` | `"<LLM_PROVIDER>/<LLM_MODEL>"`, the key used for pricing and the `model` column |
+| `recordUsage(meta, usage, opts)` | `:18-26` | Insert `llm_usage (conversation_id, run_id, agent, model, input_tokens, output_tokens, cost_usd, started_at, trace)`. Returns `id` |
+| `trackedGenerate(agent, input, meta, options)` | `:30-34` | `startedAt` → `agent.generate(input, options)` → `recordUsage(meta, out.totalUsage, {startedAt, trace: traceOf(out)})`. Returns the Mastra result plus `usageId` |
+| `traceOf(out)` | `:37-53` | Per step: `request.body` (JSON-parsed), `text`, `toolCalls`, `toolResults`, `finishReason`, `usage`. Plus `final_text` |
+
+- Callers, by `agent` label: `supervisor`, `workflow: <name>`, `bubble-fix`, `probe`.
+- A failed `generate` writes **no** usage row (the throw happens before `recordUsage`).
+- Nested calls: the supervisor's `totalUsage` and the delegated workflow agent's call are recorded as **separate rows**. Whether the supervisor's usage also includes the nested agent's tokens is **(unverified)**, but the code assumes it does not.
+- `trace` stores full provider request bodies (prompts and transcript), so it contains customer PII (§23).
+- `cost_usd` is computed at insert time. Read paths recompute it when it is null (`playground.controller.ts:35,58-59`), so adding a price later back-fills on read.
+
+---
+
+## 17. Module: Dev endpoints
+
+File: `dev/dev.controller.ts`. Every handler calls `guard()` first (`:12`): **404** unless `DEV_ENDPOINTS=1`. These routes **bypass the inbox**, so moves run synchronously in the request (still serialized per run by `serial`).
+
+| Route | Lines | Behaviour |
+|---|---|---|
+| `POST /dev/agent-runs` `{workflow_id}` | 20-27 | 400 unless published (enabled is **not** required). Inserts a `Dev tester` conversation. `startAgentRun(conv, wf, 'dev endpoint')` → ToolResult |
+| `GET /dev/agent-runs/:id` | 29-34 | 404 if missing (`id::text`, so a non-uuid gives 404, not 500). Returns `agentRunState` |
+| `POST /dev/agent-runs/:id/tools/:tool` | 37-46 | `wfTools[tool]` (400 listing valid names). `inputSchema.safeParse(body)` → 400 with zod issues. `t.execute(parsed, {requestContext: new RequestContext([['runId', id]])})`. `wf_yield` is not available here |
+| `POST /dev/agent-runs/:id/approval` `{approved, note?}` | 49-56 | Finds the run's pending task (400 if none). Updates it directly (`decided_by='dev'`). Calls `decideAgentApproval` **synchronously**. No workflow-agent turn and no customer message |
+| `GET /dev/workflows/:id/map` | 59-65 | 400 unless published. `buildMap(published_graph, {name, published_when_to_use}, needsApproval())` → full `WorkflowMap` |
+| `POST /dev/llm/probe` `{message?}` | 68-74 | `probeChat(message, 'dev-probe')` (Mastra memory thread `dev-probe`, resource `dev`). Then `select agent, model, input_tokens, output_tokens, created_at from llm_usage …`. **`llm_usage.created_at` was dropped in 0016**, so this query fails and the endpoint returns 500 after the LLM call and usage row have succeeded (Risk R18) |
+
+---
+
+## 18. End-to-end scenario traces
+
+### 18.1 A. Customer message starts a workflow and completes the first blocks
+
+```mermaid
+sequenceDiagram
+  participant C as Customer (widget)
+  participant WC as WidgetController
+  participant DB
+  participant IN as Inbox
+  participant SUP as Supervisor
+  participant WA as Workflow agent
+  participant T as wf tools
+  participant E as Engine
+  C->>WC: POST /widget/conversations/:id/messages {text}
+  WC->>DB: insert message (customer)
+  WC->>DB: insert ticket_event customer_message (enqueue, not awaited)
+  WC-->>C: 201 {id}
+  IN->>DB: claim event (working)
+  IN->>SUP: customerTurn
+  SUP->>T: start_workflow(id, 0.9, reason)
+  T->>DB: wfStart checks, insert workflow_run at first item, run_started
+  SUP->>WA: delegate_to_workflow(answer)
+  WA->>T: wf_complete_step(bubble b1)
+  T->>E: bubbleText, follow, settle
+  T->>DB: outbox push, saveRun, step_completed
+  T-->>WA: next = input i1, say = [bubble]
+  WA->>T: wf_save_input(i1, value)
+  T->>E: checkAnswer, saveAnswer, follow, settle
+  T->>DB: saveRun, input_received
+  T-->>WA: next = ai_step s1, actions = [key(args)]
+  WA-->>SUP: final text (asks or confirms)
+  SUP->>DB: deliver: bubble check, insert bot message, outbox cleared
+  SUP->>DB: markWaiting: waiting_customer + timers
+  IN->>DB: event done, seen cleanup
+  C->>WC: GET /widget/conversations/:id (poll) - sees reply, typing false
+```
+
+### 18.2 B. AI step with an action that needs approval
+
+1. The workflow agent calls `call_action(key, args)`. `planCall` returns `approval` because `requires_approval` is set.
+2. `openTask` creates `approval_task(kind 'action', action_args)`, then `outputs[node] = {approval_task_id}`, `status=waiting_approval`, `waiting_for={approval, due_at}`.
+3. The tool returns `{waiting: 'team approval'}`. The agent tells the customer the team is checking. `deliver` sends it. `markWaiting` does nothing (the status is not `running`).
+4. A teammate calls `POST /approvals/:id/decide {approved:true}`. The task is marked approved and an `approval_decided` event is enqueued.
+5. Inbox → `approvalTurn` → `decideAgentApproval` → `runApproved` → `executeAction(mode 'approved', taskId)` → `outputs[node] = result`, `saveResponse`, `advance` to the next node, `status=running`.
+6. `workflowTurn(intent 'resume', note 'The team approved…')`. The approved step is already behind the run (`runApproved` called `advance()`), so the agent does **not** call `wf_complete_step` for it. It works on the *next* card, then `deliver` and `markWaiting` run.
+7. If no one decides: after `APPROVAL_TIMEOUT_SEC`, the sweeper sends a timer → `timerTurn` → `escalated / approval timed out` (pending task → `expired`), plus the fixed message.
+
+### 18.3 C. Auto action failure and retry
+- `call_action` runs the flow. On failure: `action_run.failed`, event `action_result {ok:false}`, ToolErr `<key> failed: …`. The run status is unchanged. The agent can retry in the same turn (same idempotency key, new args) or hand off.
+- An **approved** action failure sets `status='failed'` (§12.8). `POST /runs/:id/retry` → `controlTurn` → `controlAgentRun('retry')` → `runApproved` again → on success the workflow agent speaks.
+
+### 18.4 D. Invalid input and escalation
+`wf_save_input` with a bad email → `input_invalid`, attempts 1..3 → reject with the retry text. The 4th invalid answer → `end('escalated', 'no valid answer after 3 tries')`. Pending tasks are cancelled and the run ends. The next customer message gets silence (escalated conversation).
+
+### 18.5 E. Loop back with "ask again"
+A group exit edge with `maxVisits: 2, fresh: true` that points back to an earlier input:
+- `follow` → `rerun` clears outputs, cases and attempts of the items from the target onward, and deletes the variables they filled. `visits[edge]=2`. Event `goto_jumped`.
+- The card is the earlier input again, with no `answered`.
+- The second jump back → `visit 3 > 2` → `LIMIT` → `escalated / loop_limit`, event `goto_limit`.
+
+### 18.6 F. Topic switch
+The supervisor sees a different request → `switch_workflow(id, ≥0.8)` → `wfSwitchWorkflow`: event `workflow_switched`, old run `cancelled` (pending tasks cancelled), `startAgentRun` new → `turn.runId` updated → `delegate_to_workflow(answer)`. Or the workflow agent calls `wf_yield` → `delegate_to_workflow` returns `yielded` → the supervisor switches and delegates again, or replies itself.
+
+### 18.7 G. Customer writes twice quickly
+- Two `customer_message` events. When the first is claimed, a newer pending one exists, so the first is closed as `merged into a later message`. One turn runs on the latest, and the agents read the full transcript.
+- If the customer writes **during** a turn, `deliver` (or the supervisor path) sees `newerMessage` and the reply is dropped (`reply_dropped`, bubbles kept). The next event runs a fresh turn.
+
+### 18.8 H. Silence: reminder and expiry
+After `markWaiting`, the sweeper (every 30 s):
+- at `remind_at` → `Just checking in…` (once),
+- at `expires_at` → `expired / customer did not reply`, plus the closing message.
+
+A later message from the customer finds no active run and no escalation, so the supervisor may start a new run. The old one is not resumed.
+
+### 18.9 I. Teammate pause and resume
+- `POST /runs/:id/pause` → `status=paused` (previous status and timers saved).
+- A customer message while paused gets event `customer_message` and a system note. No reply, and the event is closed.
+- `POST /runs/:id/resume` restores the status and timers, but **no agent turn runs** (Risk R2). The customer's message from the pause stays unanswered until they write again (or a timer fires).
+
+---
+
+## 19. State machines
+
+### 19.1 `workflow_run.status`
+
+```mermaid
+stateDiagram-v2
+  [*] --> running: startAgentRun
+  running --> waiting_customer: markWaiting at end of a workflow turn
+  waiting_customer --> running: a successful wf move (commit)
+  running --> waiting_approval: call_action needs approval or request_approval
+  waiting_customer --> waiting_approval: call_action needs approval
+  waiting_approval --> running: decision applied (decideAgentApproval)
+  waiting_approval --> failed: approved action failed (runApproved)
+  failed --> running: retry succeeded, or retry with no approved task
+  failed --> running: an agent move on the failed run (Risk R5)
+  running --> paused: pause
+  waiting_customer --> paused: pause
+  waiting_approval --> paused: pause
+  paused --> running: resume (restores previous status)
+  paused --> waiting_customer: resume
+  paused --> waiting_approval: resume
+  running --> completed: no next block (settle null)
+  waiting_customer --> completed: move reaches the end
+  running --> escalated: handoff, escalate_to_human, 4th invalid input, loop limit
+  waiting_customer --> escalated: same
+  waiting_approval --> escalated: approval timed out (timer)
+  waiting_approval --> escalated: wf_handoff
+  paused --> escalated: wf_handoff
+  failed --> escalated: wf_handoff
+  waiting_customer --> expired: customer silent until expires_at (timer)
+  running --> cancelled: cancel, switch
+  waiting_customer --> cancelled: cancel, switch
+  waiting_approval --> cancelled: cancel
+  paused --> cancelled: cancel
+  failed --> cancelled: cancel
+  completed --> [*]
+  escalated --> [*]
+  expired --> [*]
+  cancelled --> [*]
+```
+
+Active set (DB index and `types.ts:54` `ACTIVE`): `running, waiting_customer, waiting_approval, paused, failed`. Only one active run per conversation is allowed.
+
+### 19.2 `ticket_event.status`
+
+```mermaid
+stateDiagram-v2
+  [*] --> pending: enqueue
+  pending --> working: drain claims (skip locked)
+  pending --> done: merged into a later message, or answered in an earlier turn
+  working --> done: handler returned
+  working --> failed: handler threw (no retry)
+  working --> pending: server restart (startInbox)
+  done --> [*]
+  failed --> [*]
+```
+
+### 19.3 `approval_task.status`
+
+```mermaid
+stateDiagram-v2
+  [*] --> pending: openTask
+  pending --> approved: POST decide approved, or dev approval
+  pending --> rejected: POST decide rejected, or dev approval
+  pending --> cancelled: run ended by commit (complete, handoff, cancel, switch, escalate) or customer expiry timer
+  pending --> expired: approval timeout timer
+  approved --> [*]
+  rejected --> [*]
+  cancelled --> [*]
+  expired --> [*]
+```
+
+### 19.4 `action_run.status`
+
+```mermaid
+stateDiagram-v2
+  [*] --> running: insert (first call for a key)
+  running --> succeeded: flow ok
+  running --> failed: flow error or no runner
+  failed --> running: same key called again (args replaced)
+  running --> running: same key called again while running (flow called again, Risk R11)
+  succeeded --> [*]: repeats return stored result
+```
+
+---
+
+## 20. run_event catalogue
+
+`run_event` is the run timeline. It is the only structured execution log apart from `llm_usage`. Other logging uses Nest's `Logger('Inbox')` (`inbox.ts:9`) for drain and sweep errors, plus one `console.log` at boot. There are no metrics, tracing spans or correlation ids. `llm_usage.id` is referenced from events as `usage_id`.
+
+| type | actor | Written by | data |
+|---|---|---|---|
+| `run_started` | system | `startAgentRun` | `{workflow, reason}` |
+| `customer_message` | customer | `customerTurn`, `start_workflow`, `switch_workflow` | `{messageId}` |
+| `supervisor_delegated` | ai | `delegate_to_workflow` | `{intent, note}` |
+| `supervisor_replied` | ai | `customerTurn` (if a run is set) | `{ms, tokens, usage_id}` |
+| `agent_turn` | ai | `workflowTurn` | `{agent, intent, note}` |
+| `agent_replied` | ai | `workflowTurn` | `{agent, ms, tokens, usage_id}` |
+| `yielded` | ai | `wf_yield` | `{reason}` |
+| `message_sent` | ai | `send` (with a run) | `{text}` |
+| `reply_dropped` | system | `deliver` | `{reason, text}` |
+| `bubble_fixed` | system | `deliver` | `{by: rewrite, still_missing, usage_id}` or `{by: server, added}` |
+| `move_rejected` | ai | `logged()` | `{tool, reason, args}` |
+| `input_invalid` / `input_received` | ai | `wfSaveInput` | `{<saveAs>: value, format}` |
+| `case_chosen` | ai | `wfChooseCase` | `{case_id, reason}` |
+| `step_completed` | ai | `wfCompleteStep` | `{summary}` |
+| `action_called` | ai | `wfCallAction` | `{key, args}` |
+| `action_result` | system | `wfCallAction`, `runApproved` | `ExecResult` `{ok, result\|error, actionRunId}` |
+| `response_saved` | system | `keep()` | `{saved, missing}` |
+| `waiting` | system | `wfCallAction` | `{for:'approval', task_id}` |
+| `approval_requested` | system | `openTask` | `{task_id, kind, summary}` |
+| `approval_decided` | `user:<by>` | `decideAgentApproval` | `{task_id, approved}` |
+| `signal` | `user:<by>` | `controlAgentRun` | `{type: pause\|resume\|cancel\|retry_step, by}` |
+| `handoff` | ai | `wfHandoff` | `{reason}` |
+| `workflow_switched` | ai | `wfSwitchWorkflow` | `{to, confidence, reason}` |
+| `goto_jumped` / `goto_limit` | system | `follow` via `commit` | `{target, visit, max_visits, direction}` / `{target, max_visits}` |
+| `run_completed`, `run_escalated`, `run_cancelled` | system | `commit` | `{reason}` |
+| `run_failed` | system | `runApproved` | `{error}` |
+| `run_expired`, `run_escalated` | system | `timerTurn.end` | `{reason}` |
+| `reminder_sent` | system | `timerTurn` | `{}` |
+
+`system`-role `message` rows act as a second, human-readable log in the playground (supervisor decisions, pause notes, dropped replies, inbox errors).
+
+---
+
+## 21. Cross-feature dependencies and coupling
+
+### 21.1 Import graph (verified from `import` statements)
+
+```mermaid
+flowchart TD
+  main --> appmodule[app.module]
+  main --> inbox
+  appmodule --> wfc[workflows.controller] --> wfs[workflows.service] --> graphts[graph.ts]
+  appmodule --> ac[actions.controller]
+  appmodule --> ic[integrations.controller] --> viasocket
+  appmodule --> pc[playground.controller] --> conversations --> inbox
+  pc --> usage
+  appmodule --> wc[widget.controller] --> conversations
+  appmodule --> rc[runs.controller] --> inbox
+  appmodule --> dc[dev.controller]
+  dc --> map
+  dc --> mastra
+  dc --> tools
+  dc --> wftools[wf-tools]
+  dc --> wfs
+  inbox --> agents
+  inbox --> events
+  agents --> map
+  agents --> wfs
+  agents --> context
+  agents --> events
+  agents --> mastra
+  agents --> prompts
+  agents --> tools
+  agents --> usage
+  agents --> wftools
+  mastra --> usage
+  tools --> wftools
+  wftools --> execute --> viasocket
+  wftools --> engine
+  wftools --> context
+  wftools --> events
+  wftools --> tasks --> events
+  context --> engine
+  engine --> inline
+  map --> inline
+  usage --> prices
+```
+
+`db.ts`, `config.ts` and `types.ts` are imported by most modules and are left out for clarity. **There are no circular imports.**
+
+### 21.2 Functions reused across features
+
+| Function | Callers |
+|---|---|
+| `enqueue` (`inbox.ts:12`) | `postCustomerMessage`, `RunsController.control`, `RunsController.decide`, `sweep` |
+| `send` (`agents.ts:120`) | `customerTurn`, `deliver`, `timerTurn.end` |
+| `addEvent` (`runner/events.ts:4`) | wf-tools (most moves), agents, inbox timers, `openTask` |
+| `startAgentRun` | `wfStart` (supervisor), `wfSwitchWorkflow`, `POST /dev/agent-runs` |
+| `agentRunState` | `customerTurn`, `workflowTurn`, `markWaiting`, `GET /dev/agent-runs/:id` |
+| `decideAgentApproval` | `approvalTurn`, `POST /dev/agent-runs/:id/approval` |
+| `executeAction` | `wfCallAction` (auto), `runApproved` (approved, and retry) |
+| `buildMap` + `needsApproval` | `workflowAgent`, `GET /dev/workflows/:id/map` |
+| `validateGraph` | `getWorkflow`, `createWorkflow`, `saveWorkflow`, `publishWorkflow` |
+| `trackedGenerate` | supervisor, workflow agent, bubble-fix rewrite, probe |
+| `priceOf` | `recordUsage`, `GET /conversations/:id`, `GET /ai-calls/:id` |
+| `loadTranscript` | `history()` |
+
+### 21.3 Critical execution-order requirements
+1. Migrations must run before the server starts. `render.yaml` runs them on every start.
+2. A workflow must be **published and enabled** for the supervisor to see or start it (`agents.ts:221-222`, `wf-tools.ts:246`). `/dev/agent-runs` only needs it published.
+3. A step that mentions an action: `call_action` must succeed (or open an approval) **before** `wf_complete_step`.
+4. `history()` must run before `newerMessage()`, because it sets `turn.seenId`. Both turn paths do this.
+5. In `workflowTurn`, `deliver` runs before `markWaiting`, so the waiting timers start after the reply.
+6. Control and approval events go through the **same per-conversation queue** as customer messages, so a decision never runs inside an agent turn.
+7. `startInbox` runs after `listen`. Events enqueued before boot finishes are drained by the boot `kick`.
+
+### 21.4 Hidden coupling to watch when changing code
+- **Action keys are plain strings** in graph JSON, `action_keys`, `published_action_keys`, every run's `graph` copy, and `approval_task.action_key`. There is no FK. Rename and delete checks only look at `workflow` rows (Risk R8).
+- **Builtin keys are hard-coded** in `planCall` (`escalate_to_human`, `request_approval`). Their `action` rows must exist and be enabled, or the call is rejected as `disabled`.
+- **`facts.outputs[node]` has four meanings**: action result, input answer `{saveAs: value}`, approval marker `{approval_task_id}`, and approval decision `{approved, reviewed_by, reviewer_note}`. `ranOutput`, `completeError` and the retry path depend on the literal key `approval_task_id`.
+- **The outbox** is filled by `wfCompleteStep` (through `saveRun`) but cleared by a direct `update` in `deliver`.
+- **Run status strings** are duplicated in `types.ts:54` (`ACTIVE`), `wf-tools.ts:20` (`TERMINAL`), `wf-tools.ts:244` (literal list), `runs.controller.ts:6-9`, `widget.controller.ts:27`, the DB check constraint and the partial unique index.
+- **Event type strings** are read by migration `0014` (`agent_replied`, `supervisor_replied` `data.ms`/`usage_id`) and by the web run panel (not verified here).
+- **Confidence thresholds** live in two places: the prompt text (`prompts.ts:24-27`) and the code (`START_CONFIDENCE` 0.7, `SWITCH_CONFIDENCE` 0.8).
+- **The workflow-agent cache** depends on the graph hash only (Risk R6).
+
+---
+
+## 22. Error handling, retries, idempotency, concurrency
+
+| Concern | Mechanism | Where |
+|---|---|---|
+| HTTP errors | `BadRequestException` (400), `NotFoundException` (404), `ConflictException` (409). Everything else is 500 by Nest default **(unverified)** | controllers, `workflows.service` |
+| Model-facing errors | `{ok:false, reason, fix}` + `move_rejected` event. The prompt tells agents to follow `fix` | wf-tools |
+| Turn failure | The event is marked `failed` and a `system` message `Error: …` is written. **No retry**, and earlier writes in the turn stay | `inbox.ts:50-54` |
+| Restart | `working` events go back to `pending` (at-least-once) | `inbox.ts:94` |
+| Optimistic concurrency | `row_version` on workflow save → 409 | `workflows.service.ts:44-48` |
+| One active run | Partial unique index `workflow_run_one_active` plus the check in `wfStart` | migration 0004, `wf-tools.ts:244` |
+| One pending task per node | Partial unique index plus lookup in `openTask` | migration 0001, `tasks.ts:11` |
+| Decision idempotency | `update … where status='pending' returning` | `runs.controller.ts:37-40` |
+| Action idempotency | Unique `idempotency_key = run:node:visit`, `succeeded` short-circuit, `select … for update` in a transaction, and `ranOutput` in facts | `execute.ts`, `engine.ts:227-230` |
+| Action retry | Same key: a `failed` row is re-run with new args. Approved actions retry via `POST /runs/:id/retry` | `execute.ts:22`, `wf-tools.ts:320-331` |
+| Remote timeout | 60 s axios timeout. Body-level failure detection in `flowError` | `viasocket.ts:20-35` |
+| Input retries | 3 invalid answers allowed. The 4th escalates | `engine.ts:79,118-121` |
+| Loop bound | `maxVisits` per edge (validated 1..100). Every cycle needs one | `graph.ts:101-116`, `engine.ts:250-283` |
+| Agent loop bound | `maxSteps` 6 (supervisor), 24 (workflow), 1 (bubble fix) **(unverified Mastra semantics)** | `agents.ts:83,108,225` |
+| Per-run serialization | `serial()` promise chain (in-process) | `wf-tools.ts:23-28` |
+| Per-conversation serialization | `draining` Set + `skip locked` claim (in-process) | `inbox.ts:18-33` |
+| Stale replies | `newerMessage` drop + event coalescing + seen cleanup | `agents.ts:92-101,231`, `inbox.ts:35-49` |
+| Fallback text | Approval apply failure → apology message. Timers → fixed texts. Missing bubbles → appended by the server | `agents.ts:252`, `inbox.ts:70-77`, `agents.ts:112-115` |
+
+**Concurrency model.** The design assumes **one server process**. Every lock that orders work per run or per conversation lives in memory. Postgres only guards single rows (`skip locked`, `for update`, unique indexes).
+
+---
+
+## 23. Security considerations
+
+1. **No authentication or authorization** on any route. CORS (`main.ts:11`) only limits browsers. Any HTTP client can read all conversations, decide approvals, control runs, edit actions, publish workflows and register flows. The README lists this as a POC shortcut.
+2. **Widget isolation is partial.** `/widget/*` hides system messages, runs and costs. But `GET /conversations` lists every conversation id, including widget ones, and `/conversations/:id` returns everything for any id.
+3. **`GET /ai-calls/:id` uses sequential ids**, so anyone can enumerate every stored prompt and transcript (`llm_usage.trace` holds full provider request bodies with customer PII). There is no retention limit.
+4. **`GET /integrations/builder-token`** hands out a viaSocket embed token with no expiry claim to any caller.
+5. **`via_flow_url` is a bearer credential** (`viasocket.ts:17`, migration 0005 comment), and `GET /actions` returns it unauthenticated.
+6. **`POST /actions/from-flow`** accepts any `https://flow.sokt.io/func/<id>` URL from any caller. New actions start with `requires_approval=true`, but an update to an existing flow id can change its URL and re-enable it.
+7. **Attachments**: the client-supplied `mime_type` is served back as `Content-Type` from the API origin (`playground.controller.ts:99`). An HTML or SVG upload could run script in that origin **(unverified: no `nosniff` / CSP headers are set by this code)**. The size limit is 5 MB with no type allowlist. Files live on local disk.
+8. **SQL**: all queries are parameterized. `setup-db.js:15` interpolates the DB name from `DATABASE_URL`, which is trusted config.
+9. **Model trust boundary**: run ids come from the request context, never the model (`tools.ts:7-11`). The engine enforces order, rule picks, action allow-lists and approval gates. Action **arguments** do come from the model (shaped by customer text). `validateArgs` checks only required fields, `integer` and `string`. For approval-gated actions the team sees the args on the task.
+10. **Dev routes** are off unless `DEV_ENDPOINTS=1`. `.env.example` sets it to 1. `render.yaml` does not set it, so it is off in that deployment.
+11. **Secrets** (`LLM_API_KEY`, `VIASOCKET_EMBED_SECRET`) are read from env. `.env` is git-ignored (`server/.gitignore`). This document did not open `server/.env`.
+
+---
+
+## 24. Observed risks and edge cases
+
+Each item is supported by the cited code. Severity is a judgement for a POC.
+
+| # | Risk | Evidence | Effect |
+|---|---|---|---|
+| R1 | Single-process assumption | `inbox.ts:18-27`, `wf-tools.ts:23-28`, `agents.ts:55` | Two instances could run two events of one conversation at once and interleave `saveRun` writes (last write wins) |
+| R2 | Resume never wakes the agent | `wf-tools.ts:318` returns `turn:false`. `agents.ts:241`. The note at `agents.ts:209` and the comment at `wf-tools.ts:299` say the bot replies after resume | A customer message sent while paused stays unanswered after resume |
+| R3 | Runs left `running` get no timers | `markWaiting` runs only at the end of `workflowTurn` (`agents.ts:88`). It is skipped on yield (`:86`) and never runs if the supervisor starts a run but does not delegate. `sweep` needs `waiting_for` (`inbox.ts:84`) | Such runs never get reminders or expiry and stay active, which blocks `start_workflow` on that conversation until a switch, cancel or handoff |
+| R4 | Timers not refreshed without a move | `markWaiting` requires `status='running'` (`agents.ts:129`) | Off-topic chat or invalid answers do not extend `expires_at`. An active customer can be expired, and `reminded` stays true |
+| R5 | Failed and paused runs accept moves | `active()` (`wf-tools.ts:91-96`) only blocks terminal and `waiting_approval`. `completeError` treats `{approval_task_id}` as done (`engine.ts:233-235`) | On a `failed` run, the agent can `wf_complete_step` past an approved action that never ran, or `call_action` again and open a second approval task. Paused runs are reachable this way only through `/dev` |
+| R6 | Stale workflow-agent prompt | Cache key = workflow id + graph hash (`agents.ts:59`). `when_to_use` and `needsApproval()` are read once (`:62-63`) | After a republish that changes only "When to use", or after toggling `requires_approval`, the map text is stale until restart. Enforcement still uses the live action row. Runs on an older graph also get the *current* published "When to use" |
+| R7 | Rules condition with no matching case and no Else | `chooseByRules` returns `null` (`engine.ts:156`). `wfChooseCase` requires the pick to equal it (`wf-tools.ts:143-144`) | The agent can never pass the condition. Only handoff remains. `validateGraph` does not require an Else |
+| R8 | Action rename or delete vs in-flight runs | Rename checks draft and published keys (`actions.controller.ts:58`). Delete and flow-delete check draft keys only (`:73`, `:86`). Neither checks `workflow_run.graph` or pending tasks | `call_action` on a removed key returns `<key> is disabled`. `runApproved` with a renamed or deleted key throws (`getAction` null), so the inbox event fails |
+| R9 | Pause during an approval | Pause is allowed in `waiting_approval` (`runs.controller.ts:7`). `decide` commits first (`:37-40`). `decideAgentApproval` rejects when not `waiting_approval` (`wf-tools.ts:272`) | The customer gets the apology message, the task stays decided, and after resume the run waits on a non-pending task until the approval timeout escalates it |
+| R10 | Non-object action result | `runFlow` returns `r.data ?? {}` (`viasocket.ts:23`). `ranOutput` uses `'approval_task_id' in done` (`engine.ts:229`) | If a flow returns a string or number body, a later `call_action` on that step throws a TypeError |
+| R11 | Re-execution of a `running` action_run | `executeAction` only short-circuits `succeeded` (`execute.ts:20,28`) | A crash mid-call (or concurrent use of the same key) calls the remote flow again |
+| R12 | DB lock held across HTTP | `tx` wraps `runFlow` (`execute.ts:26-33`), pool `max: 10` (`db.ts:4`) | Slow flows can tie up pool connections for up to 60 s each |
+| R13 | Attachment stream errors | `createReadStream(a.path).pipe(res)` with no `error` handler (`playground.controller.ts:100`) | A missing file (for example on Render's ephemeral disk after a redeploy) emits an unhandled stream error. This can crash the process **(unverified runtime behaviour)** |
+| R14 | Workflow name collision | `createWorkflow` numbering (`workflows.service.ts:28-29`) | Possible 500 from the unique index. `%`/`_` act as wildcards |
+| R15 | Malformed graph | `validateGraph` iterates `graph.edges` and item fields without guards (`graph.ts:90`) | 500 on save, get or publish |
+| R16 | Flow update overrides local disable | `fromFlow` always sets `enabled` (`actions.controller.ts:96-99`) | A teammate's disable is undone by the next viaSocket update event |
+| R17 | Approval attachments always empty | The query reads `evidence->'attachment_ids'` (`runs.controller.ts:28`). `openTask` callers write `{facts}` only (`wf-tools.ts:192-193`) | Evidence images never show on approval tasks created by current code |
+| R18 | Dev probe uses a dropped column | `select … created_at from llm_usage` (`dev.controller.ts:72`). Dropped in `0016_minimal_schema.sql:28` | `POST /dev/llm/probe` returns 500 after a successful model call |
+| R19 | Escalation silence is permanent | `customerTurn` (`agents.ts:202-205`) | No code path re-opens the bot on that conversation. `hand_off` with no active run does not silence it |
+| R20 | Non-atomic switch | `wfSwitchWorkflow` cancels, then starts (`wf-tools.ts:229-230`) | If the start fails, there is no active run and `turn.runId` still points to the cancelled run, so the following delegate is rejected |
+| R21 | Widget "typing" stuck after a failed turn | The inbox writes only a `system` message on failure (`inbox.ts:53`). The widget hides system messages and computes `typing` from the last visible message (`widget.controller.ts:26-27`) | The widget shows typing indefinitely after a failed turn |
+| R22 | Usage under-reported on failure | `recordUsage` runs only after `generate` resolves (`usage.ts:32-33`) | Calls that fail or time out are not costed |
+| R23 | Unbounded in-memory maps | `agents` (`agents.ts:55`), `queues` (`wf-tools.ts:23`) | Memory grows with publishes and runs over a long uptime |
+| R24 | Loose arg validation | `validateArgs` (`engine.ts:195-209`) | `number`, `boolean` and `object` types and unknown keys go to the flow unchecked |
+
+Minor notes:
+- `Supervisor: replied directly` is logged even when the supervisor sent nothing (`agents.ts:233`).
+- The comment at `wf-tools.ts:130` ("the engine skips that input later") does not match the behaviour (§12.2).
+- `facts.since` and `facts.previous` are written (`engine.ts:255-261`) but never read by server code.
+- `facts.asked` and `facts.collectedBy` are only read or deleted, never written, by current code.
+
+---
+
+## 25. Tests
+
+`npm test` compiles `test/**/*.ts` with `tsconfig.test.json` into `dist-test/`, then runs `node --test`.
+
+| File | Covers |
+|---|---|
+| `test/fixtures.ts` | `returnGraph()` (4 groups, rules condition, loop `maxVisits:2, fresh:true`, an unreachable group), `newFacts()`, `action()` builder |
+| `test/engine.test.ts` | `checkAnswer` per format, `saveAnswer` + `countAsk` limit (4th is true), retry text; `chooseByRules` (first match, else, `ref`, `or`, `contains`, `empty`/`not_empty`); `follow` loop visits, fresh clearing, limit, non-fresh keeps; `getPath`/`saveResponse`; `planCall` (not allowed, disabled, bad args, approval, escalate, evidence); `ranOutput`/`completeError`; `settle`, `reachableInput`, `stepCard` |
+| `test/map.test.ts` | `buildMap` group order and unreachable last, collects/tools/saves, branch targets and loop, `text` rendering |
+
+**Not covered:** every module that touches the DB, HTTP, LLM or viaSocket: controllers, `executeAction`, inbox, agents, `wf-tools` orchestration, `validateGraph`, `flowError`, `builderToken`.
+
+---
+
+## 26. Completeness checklist
+
+Legend: ✅ documented · 🟡 partially documented · 🔍 needs runtime or library verification.
+
+| Item | Status |
+|---|---|
+| **API endpoints**: all 35 in §5 (workflows 8, actions 6, integrations 1, playground 8, widget 3, runs/approvals 3, dev 6) | ✅ |
+| Status codes for non-HttpException errors (uuid parse, FK, unique violations) | 🔍 (NestJS default filter) |
+| POST success code 201 | 🔍 (NestJS default) |
+| **Services and business functions**: `workflows.service` (all), `graph.ts` (all), `inline.ts`, `execute.ts`, `viasocket.ts`, `conversations.ts`, `context.ts`, `events.ts`, `tasks.ts` | ✅ |
+| `agents.ts` (history, wf_yield, workflowAgent, workflowTurn, newerMessage, deliver, send, markWaiting, supervisor tools, customerTurn, controlTurn, approvalTurn) | ✅ |
+| `wf-tools.ts` (all exports and helpers) | ✅ |
+| `engine.ts`, `map.ts` (all exports) | ✅ |
+| `usage.ts`, `prices.ts`, `prompts.ts`, `tools.ts` | ✅ |
+| `mastra.ts` model selection and probe | ✅ / 🔍 (PostgresStore and Memory internals) |
+| **Database models**: 12 app tables + `schema_migrations` + `mastra` schema | ✅ (final schema derived by hand, 🔍 against a live DB) |
+| Significant queries (claim, sweep, seen cleanup, conversation view, approvals join) | ✅ |
+| **Background jobs**: inbox drain, sweeper (30 s), boot recovery | ✅ |
+| **Queue consumers**: `ticket_event` kinds `customer_message`, `approval_decided`, `control`, `timer` | ✅ |
+| Webhooks: none inbound from servers. viaSocket events arrive via the browser (`/actions/from-flow`) | ✅ |
+| **External integrations**: LLM providers (OpenAI, Anthropic, OpenAI-compatible), viaSocket flow URLs, viaSocket embed token | ✅ / 🔍 (provider and viaSocket behaviour) |
+| **Error handling and retries** | ✅ (§22) |
+| Logging, metrics, tracing | ✅ (§20: events + `llm_usage`. No metrics or tracing exist) |
+| Caching | ✅ (only the in-process agent cache. No external cache) |
+| Streaming, WebSockets, SSE | ✅ (none. Clients poll) |
+| Feature flags | ✅ (`DEV_ENDPOINTS` only) |
+| Migrations 0001–0017 | ✅ |
+| Tests | ✅ |
+| Web app internals | out of scope (only API call sites checked) |
+
+---
+
+## 27. Coverage gaps after cross-check
+
+Cross-check performed: every file under `server/src/` (30 files), `server/migrations/` (16 files), `server/scripts/setup-db.js`, `server/test/` (3 files), `package.json`, `.env.example`, `render.yaml`, `.claude/launch.json`, plus a grep of `web/src` for API call sites. Every route decorator in the 7 controllers appears in §5. Every exported function in `src/` appears in §6–§17.
+
+Remaining gaps:
+1. **Library behaviour (unverified)**:
+   - Mastra 1.75: per-call `instructions` / `maxSteps` / `activeTools` options, function-valued `model`, how thrown tool errors reach the model, whether the supervisor's `totalUsage` includes nested calls, and the `PostgresStore` schema and table creation timing.
+   - NestJS: default status codes for unhandled errors, and the 201 default for POST.
+   - Express and Node: the unhandled read-stream error in `GET /attachments/:id`.
+2. **Nothing was executed.** The final schema in §3.1 is derived from migrations, not read from a live database. No LLM or viaSocket call was observed.
+3. **viaSocket contract**: the `FlowEvent` shape is taken from the TypeScript interface and the web caller. The real window-message payloads and flow response formats were not checked.
+4. **Configured values**: `server/.env` was not opened (it holds secrets), so the effective `LLM_*`, `VIASOCKET_*` and timer values in local use are unknown.
+5. **Legacy data**: rows written by removed code (`facts.collected` beyond the two seeded keys, `facts.collectedBy`, `facts.asked`, pre-0016 action sources) can still be read by current code. Their original writers are no longer in this repository.
+6. **Web consumers of `run_event` types and `facts` fields** (`since`, `previous`) were not traced. Changing event names may break the run panel.
+7. **README drift** (outside this document's scope, noted for whoever maintains it):
+   - `README.md` says "Publishing freezes a version". Since 0017 there is no version history.
+   - It names launch configs `workflow-poc-agentic-server` / `-web`. `.claude/launch.json` uses `agentic-server` / `agentic-web`.
+   - It says an early answer is skipped by the engine. The agent must complete it.
+
+---
+
+## Appendix A: Changes since the 2026-10-13 version
+
+| Area | Before (old doc) | Now (code) |
+|---|---|---|
+| Publishing | Inserted `workflow_version` rows with `agent_map`. `workflow.published_version_id` | Copies the draft into `published_graph`, `published_when_to_use`, `published_action_keys`, `published_at` on the same row. No history (`0017`) |
+| Runs | `workflow_run.workflow_version_id`, `engine` | `workflow_run.workflow_id`, `workflow_name`, and its own `graph` copy. No `engine` column |
+| Agent map | Stored in `workflow_version.agent_map`. Dev map read it | Built from the run's graph when the agent is built, and from `published_graph` for `/dev/workflows/:id/map`. Not stored |
+| `GET /workflows` | Returned `published_version` | Returns `published_at` |
+| Action rename check | Draft `action_keys` and any `workflow_version` | Draft `action_keys` or `published_action_keys` of non-archived workflows |
+| `action` table | `kind`, `subject_field`, `amount_field`, viaSocket app fields, source `mock`/`viasocket` | Those columns are dropped. Source is `builtin` or `viasocket_flow` |
+| `llm_usage` | `created_at` | `started_at` only (not null). This breaks the dev probe (R18) |
+| Workflow | `steps`, `template` columns | Dropped. `graph` is not null |
+| Newly documented findings | — | R2, R3, R4, R5, R7, R9, R10, R17, R18, R20, R21, R24 |

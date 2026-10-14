@@ -275,6 +275,7 @@ export const decideAgentApproval = (runId: string, taskId: string, approved: boo
   await addEvent(runId, node.id, `user:${by}`, 'approval_decided', { task_id: taskId, approved });
   if (task.kind === 'action' && approved) return runApproved(c, node, task);
   c.run.facts.outputs[node.id] = { approved, reviewed_by: by, reviewer_note: note ?? '' };
+  await keep(c, node, c.run.facts.outputs[node.id]); // a review's decision can be saved to variables too
   c.run.status = 'running';
   return advance(c, node.id, c.flow.next(node.id), { approved });
 });
