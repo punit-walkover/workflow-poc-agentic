@@ -1,0 +1,252 @@
+'use client';
+
+import { useState } from 'react';
+import { Check, Circle, Clock, History, ListChecks, Loader2, Minus } from 'lucide-react';
+import { api, API, usd } from '@/lib/api';
+import { reachableFrom, ruleText, type WorkflowGraph } from '@/lib/graph';
+import { Button, StatusChip } from './ui';
+import { InlineText } from './inline-text';
+import { ActionRun, ToolCalls } from './tool-call';
+import { RunTimeline, TimelineMessage } from './run-timeline';
+import { JsonView } from './json-view';
+import { AiCallDialog } from './ai-call';
+import { ChevronRight } from 'lucide-react';
+
+export interface RunView {
+  id: string; status: string; current_node_id: string | null; workflow_name: string; graph: WorkflowGraph;
+  facts: { cases: Record<string, { case_id: string | null; reason: string }>; outputs: Record<string, any>; collected: Record<string, any>; vars?: Record<string, any>; visits?: Record<string, number> };
+  waiting_for: any; end_reason: string | null; started_at?: string;
+}
+export interface EventRow { id: string; run_id: string; node_id: string | null; actor: string; type: string; data: any; at: string }
+export interface Task { id: string; run_id: string; status: string; kind: string; summary: string; evidence: any; decided_by: string | null; decision_note: string | null; created_at: string; decided_at: string | null }
+
+const ACTIVE = ['running', 'waiting_customer', 'waiting_approval', 'paused', 'failed'];
+
+// Every model call of the conversation (supervisor, workflow agents, runner) and the totals.
+export interface AiCall { id: string; agent: string; model: string; input_tokens: number | null; output_tokens: number | null; cost_usd: number | null; started_at: string }
+export interface AiUsage { calls: AiCall[]; count: number; input_tokens: number; output_tokens: number; cost_usd: number; unpriced: string[] }
+
+const k = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n));
+const time = (s: string) => new Date(s).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+// Top of the panel: what this conversation's AI has cost so far; open it for each call.
+function AiCost({ usage }: { usage?: AiUsage }) {
+  const [openId, setOpenId] = useState<string | null>(null);
+  if (!usage?.count) return null;
+  return (
+    <>
+    {openId && <AiCallDialog id={openId} onClose={() => setOpenId(null)} />}
+    <details className="group rounded-lg border border-line bg-panel">
+      <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 text-xs">
+        <ChevronRight size={12} className="text-ink-3 transition-transform group-open:rotate-90" />
+        <span className="text-ink-2">AI cost for this conversation</span>
+        <span className="ml-auto font-semibold tabular-nums text-ink">{usage.unpriced.length && !usage.cost_usd ? 'price not set' : usd(usage.cost_usd)}</span>
+        <span className="tabular-nums text-ink-3">· {usage.count} call{usage.count === 1 ? '' : 's'} · {k(usage.input_tokens + usage.output_tokens)} tokens</span>
+      </summary>
+      {usage.unpriced.length > 0 && (
+        <div className="px-3 pb-1 text-[11px] text-warn">No price set for {usage.unpriced.join(', ')}: those calls count as $0 (add it to server/src/agents/prices.ts).</div>
+      )}
+      <div className="max-h-56 overflow-auto border-t border-line text-[11px]">
+        {usage.calls.map((c) => (
+          <button key={c.id} type="button" title="Show the full request and response" onClick={() => setOpenId(String(c.id))}
+                  className="grid w-full grid-cols-[4.5rem_minmax(0,1fr)_auto_auto] gap-2 border-b border-line px-3 py-1 text-left last:border-b-0 hover:bg-hover">
+            <span className="tabular-nums text-ink-3">{time(c.started_at)}</span>
+            <span className="truncate text-ink-2" title={c.model}>{c.agent}</span>
+            <span className="tabular-nums text-ink-3">{k(c.input_tokens ?? 0)} in · {k(c.output_tokens ?? 0)} out</span>
+            <span className="w-14 text-right font-medium tabular-nums text-ink">{usd(c.cost_usd)}</span>
+          </button>
+        ))}
+      </div>
+    </details>
+    </>
+  );
+}
+
+// Approval cards live in the chat timeline only; the header's waiting line says when the run waits on one.
+// Steps show the current run (runs[0]); the timeline covers every run of the chat (e.g. before and after a workflow switch).
+export function RunPanel({ runs, events, messages, actionRuns = [], usage, onChanged }: { runs: RunView[]; events: EventRow[]; messages?: TimelineMessage[]; actionRuns?: ActionRun[]; usage?: AiUsage; onChanged: () => void }) {
+  const run = runs[0];
+  const costs = new Map((usage?.calls ?? []).map((c) => [String(c.id), c.cost_usd]));
+  const [error, setError] = useState('');
+  if (!run) {
+    return (
+      <div className="flex flex-col gap-3 p-5 text-ink-2">
+        <AiCost usage={usage} />
+        <div className="font-medium text-ink">No workflow running</div>
+        The bot answers freely until a message matches a published workflow&apos;s <i>When to use</i>.
+      </div>
+    );
+  }
+  const control = async (op: string) => {
+    setError('');
+    try { await api(`/runs/${run.id}/${op}`, { method: 'POST', body: { by: 'You (teammate)' } }); onChanged(); } catch (e: any) { setError(e.message); }
+  };
+  const visited = new Set(events.filter((e) => e.run_id === run.id).map((e) => e.node_id).filter(Boolean));
+  // Tool calls per step, oldest first (a loop's repeat is a later visit).
+  const calls = new Map<string, ActionRun[]>();
+  for (const c of [...actionRuns].sort((a, b) => a.visit - b.visit || a.started_at.localeCompare(b.started_at)))
+    if (c.node_id) calls.set(c.node_id, [...(calls.get(c.node_id) ?? []), c]);
+  const active = ACTIVE.includes(run.status);
+
+  return (
+    <div className="flex flex-col gap-4 p-4">
+      <AiCost usage={usage} />
+      <div>
+        <div className="flex items-center justify-between gap-2">
+          <div className="font-medium">{run.workflow_name}</div>
+          <StatusChip status={run.status} />
+        </div>
+        <WaitingLine run={run} />
+        {run.end_reason && !active && <div className="mt-1 text-xs text-ink-3">Ended: {run.end_reason}</div>}
+        {active && (
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {run.status !== 'paused' && <Button onClick={() => control('pause')}>Pause</Button>}
+            {run.status === 'paused' && <Button onClick={() => control('resume')}>Resume</Button>}
+            {run.status === 'failed' && <Button onClick={() => control('retry')}>Retry step</Button>}
+            <Button variant="danger" onClick={() => control('cancel')}>Cancel</Button>
+          </div>
+        )}
+        {error && <div className="mt-2 text-xs text-bad">{error}</div>}
+      </div>
+
+      <section>
+        <SectionHeader icon={ListChecks} title="Steps" />
+        <GraphRun graph={run.graph} run={run} visited={visited} calls={calls} />
+      </section>
+
+      <section className="border-t border-line pt-4">
+        <SectionHeader icon={History} title="Timeline" />
+        <RunTimeline runs={runs} events={events} messages={messages} costs={costs} />
+      </section>
+    </div>
+  );
+}
+
+// A highlighted section heading for the panel (Steps, Timeline), with optional controls on the right.
+function SectionHeader({ icon: Icon, title, children }: { icon: typeof Check; title: string; children?: React.ReactNode }) {
+  return (
+    <div className="mb-2 flex items-center gap-2 rounded-lg border border-line bg-hover px-2.5 py-1.5">
+      <Icon size={14} className="shrink-0 text-ink" />
+      <span className="text-xs font-semibold uppercase tracking-wide text-ink">{title}</span>
+      {children && <span className="ml-auto flex items-center gap-1.5">{children}</span>}
+    </div>
+  );
+}
+
+function WaitingLine({ run }: { run: RunView }) {
+  const w = run.waiting_for;
+  if (!w) return null;
+  const at = (ms: number) => new Date(ms).toLocaleTimeString();
+  if (w.type === 'customer')
+    return <div className="mt-1 flex items-center gap-1 text-xs text-warn"><Clock size={12} /> Waiting on customer{w.expects?.length ? `: ${w.expects.join(', ')}` : ''} · {w.reminded ? `expires ${at(w.expires_at)}` : `reminder ${at(w.remind_at)}`}</div>;
+  return <div className="mt-1 flex items-center gap-1 text-xs text-bad"><Clock size={12} /> Waiting for approval · due {at(w.due_at)}</div>;
+}
+
+type Calls = Map<string, ActionRun[]>;
+
+// Canvas runs: groups in reading order (start first), the step the run is on in a yellow box.
+function GraphRun({ graph, run, visited, calls }: { graph: WorkflowGraph; run: RunView; visited: Set<unknown>; calls: Calls }) {
+  const groups = [...graph.groups].sort((a, b) => (a.id === graph.start ? -1 : b.id === graph.start ? 1 : a.x - b.x || a.y - b.y));
+  const live = ACTIVE.includes(run.status);
+  // Skipped: never ran and the run can't get there any more (after it ends, that's everything that never ran).
+  const ahead = reachableFrom(graph, live ? run.current_node_id : null);
+  const skipped = (id: string) => !visited.has(id) && !ahead.has(id);
+  return (
+    <div className="space-y-2">
+      {groups.map((g) => {
+        const off = g.items.length > 0 && g.items.every((it) => skipped(it.id));
+        return (
+        <div key={g.id} className={`rounded-lg border border-line px-2 py-1.5 ${off ? 'border-dashed bg-canvas/40 opacity-60' : ''}`}>
+          <div className="mb-1 flex items-center gap-1.5 text-xs font-semibold text-ink-2">
+            <span className={off ? 'line-through' : ''}>{g.title}</span>
+            {off && <span className="rounded bg-hover px-1 text-[10px] font-medium uppercase tracking-wide text-ink-3">Skipped</span>}
+          </div>
+          {g.items.map((it) => {
+            const current = live && run.current_node_id === it.id;
+            const done = visited.has(it.id) && !current;
+            const skip = skipped(it.id);
+            const icon = current ? (run.status === 'running' ? <Loader2 size={13} className="animate-spin text-action" /> : <Clock size={13} className="text-warn" />)
+              : done ? <Check size={13} className="text-ok" /> : skip ? <Minus size={13} className="text-ink-3" /> : <Circle size={13} className="text-line" />;
+            const chosen = it.type === 'condition' ? it.cases.find((c) => c.id === run.facts.cases?.[it.id]?.case_id) : undefined;
+            return (
+              <div key={it.id} className={`my-0.5 flex gap-2 rounded-md border px-1.5 py-1 ${current ? 'border-warn bg-warn-soft/60 font-medium shadow-sm' : 'border-transparent'}`}>
+                <span className="mt-0.5 shrink-0">{icon}</span>
+                <span className={`min-w-0 leading-snug ${skip ? 'text-ink-3 line-through decoration-ink-3/60' : ''}`}>
+                  {it.type === 'step' ? <><InlineText content={it.content} />
+                      {done && it.save?.map((m) => <SavedVar key={m.var} name={m.var} path={m.path} value={run.facts.vars?.[m.var]} />)}
+                      {(done || current) && <ToolCalls calls={calls.get(it.id) ?? []} output={run.facts.outputs?.[it.id]} />}</>
+                    : it.type === 'bubble' ? <span className="text-ink-2">Says: “<InlineText content={it.content} />”</span>
+                    : it.type === 'input' ? <>Asks for <span className="font-mono text-var">{it.saveAs || '…'}</span>
+                        {(run.facts.vars?.[it.saveAs] ?? run.facts.collected?.[it.saveAs]) !== undefined && done && <span className="text-ok"> = {String(run.facts.vars?.[it.saveAs] ?? run.facts.collected[it.saveAs])}</span>}</>
+                    : <>Condition{chosen && <span className="text-ok"> → {chosen.kind === 'else' ? 'otherwise'
+                        : it.mode === 'rules' ? (chosen.rules ?? []).map(ruleText).join(chosen.join === 'or' ? ' or ' : ' and ')
+                        : <InlineText content={chosen.condition} />}</span>}</>}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// A variable filled by Save response: plain values inline; objects and lists fold (closed by default) into a JSON tree.
+function SavedVar({ name, path, value: raw }: { name: string; path: string; value: unknown }) {
+  const [open, setOpen] = useState(false);
+  // Some tools return JSON as text; show it as a tree too.
+  let value = raw;
+  if (typeof raw === 'string' && /^\s*[[{]/.test(raw)) { try { value = JSON.parse(raw); } catch { /* plain text */ } }
+  const label = <span className="font-mono text-var">{name}</span>;
+  if (value === undefined) return <span className="block text-xs">{label}<span className="text-warn"> ({path}: not in response)</span></span>;
+  if (value === null || typeof value !== 'object') return <span className="block text-xs">{label}<span className="text-ok"> = {String(value)}</span></span>;
+  const n = Array.isArray(value) ? value.length : Object.keys(value).length;
+  return (
+    <span className="block text-xs font-normal">
+      <button type="button" onClick={() => setOpen((o) => !o)} className="flex items-center gap-1 hover:text-ink">
+        <ChevronRight size={12} className={`shrink-0 text-ink-3 transition-transform ${open ? 'rotate-90' : ''}`} />
+        {label}<span className="text-ink-3"> = {Array.isArray(value) ? `[ ${n} item${n === 1 ? '' : 's'} ]` : `{ ${n} field${n === 1 ? '' : 's'} }`}</span>
+      </button>
+      {open && <span className="mt-1 block max-h-60 overflow-auto rounded-md border border-line bg-canvas/60 p-2"><JsonView value={value} /></span>}
+    </span>
+  );
+}
+
+export function ApprovalCard({ task, onDone, showContext }: { task: Task & { customer_name?: string; workflow_name?: string; attachments?: any[] }; onDone: () => void; showContext?: boolean }) {
+  const [note, setNote] = useState('');
+  const [busy, setBusy] = useState(false);
+  const decide = async (approved: boolean) => {
+    setBusy(true);
+    try { await api(`/approvals/${task.id}/decide`, { method: 'POST', body: { approved, note, by: 'You (team)' } }); onDone(); } finally { setBusy(false); }
+  };
+  const ids: string[] = task.evidence?.attachment_ids ?? [];
+  return (
+    <div className="rounded-lg border border-warn/40 bg-warn-soft/60 p-3">
+      <div className="mb-1 flex items-center justify-between text-xs text-warn">
+        <span className="font-medium uppercase tracking-wide">Needs approval · {task.kind === 'action' ? 'action' : 'evidence review'}</span>
+      </div>
+      {showContext && <div className="text-xs text-ink-2">{task.customer_name} · {task.workflow_name}</div>}
+      <div className="mb-1 text-ink">{task.summary}</div>
+      {task.evidence?.reason && <div className="mb-2 text-xs text-ink-2">Why: {String(task.evidence.reason)}</div>}
+      {ids.length > 0 && (
+        <div className="mb-2 flex gap-2">
+          {ids.map((id) => <a key={id} href={`${API}/attachments/${id}`} target="_blank" rel="noreferrer">
+            <img src={`${API}/attachments/${id}`} alt="evidence" className="h-20 w-20 rounded border border-line bg-panel object-cover" /></a>)}
+        </div>
+      )}
+      {task.status === 'pending' ? (
+        <>
+          <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Note for the record (optional)"
+                 className="mb-2 w-full rounded-md border border-line bg-panel px-2 py-1 text-sm outline-none" />
+          <div className="flex gap-2">
+            <Button variant="primary" disabled={busy} onClick={() => decide(true)}>Approve</Button>
+            <Button variant="danger" disabled={busy} onClick={() => decide(false)}>Reject</Button>
+          </div>
+        </>
+      ) : (
+        <div className="text-xs text-ink-2"><StatusChip status={task.status} /> by {task.decided_by}{task.decision_note ? ` — "${task.decision_note}"` : ''}</div>
+      )}
+    </div>
+  );
+}

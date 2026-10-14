@@ -1,0 +1,609 @@
+<title>Agent Workflows Full Plan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a decision document — sticky contents rail + one reading column; comparison tables and diagrams scroll in their own boxes. */
+:root {
+  --bg: #f5f6f8; --panel: #ffffff; --ink: #1a1f2b; --ink-2: #4b5466; --line: #dde1e8;
+  --accent: #3b5bdb; --accent-soft: #e8edfc; --code: #eef0f5;
+  --ok: #217a4b; --ok-soft: #e2f3e9; --warn: #8f6210; --warn-soft: #fbf0d9; --bad: #b02a22; --bad-soft: #fbe5e3;
+  --dot: #d4d9e3;
+  --display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --body: "Source Serif 4", Georgia, "Times New Roman", serif;
+  --mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #11141a; --panel: #181c24; --ink: #e5e8ef; --ink-2: #a2aabb; --line: #2a303c;
+  --accent: #8aa2ff; --accent-soft: #1d2744; --code: #1f2430;
+  --ok: #6fd19a; --ok-soft: #163225; --warn: #e3b25c; --warn-soft: #382d18; --bad: #f08a80; --bad-soft: #3b1d1b; --dot: #252b37; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #11141a; --panel: #181c24; --ink: #e5e8ef; --ink-2: #a2aabb; --line: #2a303c;
+  --accent: #8aa2ff; --accent-soft: #1d2744; --code: #1f2430;
+  --ok: #6fd19a; --ok-soft: #163225; --warn: #e3b25c; --warn-soft: #382d18; --bad: #f08a80; --bad-soft: #3b1d1b; --dot: #252b37; color-scheme: dark }
+
+* { box-sizing: border-box }
+html { scroll-behavior: smooth }
+body { background: var(--bg); color: var(--ink); font: 17px/1.65 var(--body); padding-inline: 16px; padding-block: 0 72px }
+.wrap { max-width: 1120px; margin: 0 auto; display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 48px }
+@media (max-width: 880px) { .wrap { grid-template-columns: minmax(0, 1fr) } nav.toc { display: none } }
+
+header.hero { max-width: 1120px; margin: 0 auto 36px; padding-block: 44px 28px; border-bottom: 1px solid var(--line);
+  background-image: radial-gradient(var(--dot) 1.2px, transparent 1.2px); background-size: 22px 22px }
+.eyebrow { font: 500 12px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--accent) }
+h1 { font: 700 clamp(30px, 5vw, 46px)/1.1 var(--display); margin: 12px 0 14px; text-wrap: balance; letter-spacing: -.01em }
+.lede { font-size: 19px; color: var(--ink-2); max-width: 68ch; margin: 0 }
+.meta { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px }
+.chip { font: 500 12px/1 var(--mono); padding: 6px 9px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); color: var(--ink-2) }
+
+nav.toc { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 20px); align-self: start; font: 13.5px/1.45 var(--display); max-height: calc(100vh - 40px); overflow-y: auto; padding-bottom: 20px }
+nav.toc ol { list-style: none; padding: 0; margin: 0; display: grid; gap: 5px; counter-reset: s }
+nav.toc a { color: var(--ink-2); text-decoration: none; display: flex; gap: 8px }
+nav.toc a::before { counter-increment: s; content: counter(s); font: 12px/1.6 var(--mono); color: var(--accent); width: 18px; flex: none }
+nav.toc a:hover, nav.toc a:focus-visible { color: var(--ink) }
+
+main { min-width: 0 }
+section { padding-block: 6px 26px; border-bottom: 1px solid var(--line); margin-bottom: 26px; scroll-margin-top: 16px }
+section:last-child { border-bottom: 0 }
+h2 { font: 700 25px/1.25 var(--display); margin: 0 0 10px; text-wrap: balance }
+h3 { font: 600 17.5px/1.3 var(--display); margin: 22px 0 8px }
+p, li { max-width: 72ch }
+p { margin: 0 0 12px }
+ul, ol { padding-left: 22px; margin: 0 0 12px }
+li { margin-bottom: 4px }
+code { font: 13.5px var(--mono); background: var(--code); padding: 1px 5px; border-radius: 4px; overflow-wrap: anywhere }
+pre { font: 13px/1.55 var(--mono); background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 13px 15px; overflow-x: auto; margin: 0 0 14px }
+pre code { background: none; padding: 0; overflow-wrap: normal }
+a { color: var(--accent) }
+a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+
+.verdict { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--accent); border-radius: 0 10px 10px 0; padding: 16px 20px; margin: 0 0 16px }
+.verdict p { margin: 0 0 8px } .verdict p:last-child { margin: 0 }
+.verdict strong { font-family: var(--display) }
+.scroll { overflow-x: auto; margin: 0 0 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel) }
+table { border-collapse: collapse; width: 100%; font-size: 14.5px; min-width: 660px }
+th, td { text-align: left; padding: 8px 11px; border-bottom: 1px solid var(--line); vertical-align: top }
+th { font: 600 11.5px/1.3 var(--display); text-transform: uppercase; letter-spacing: .06em; color: var(--ink-2); background: var(--bg) }
+tr:last-child td { border-bottom: 0 }
+td:first-child { font-family: var(--display); font-weight: 600; font-size: 14px }
+.rec { background: var(--accent-soft) }
+.diagram { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px; overflow-x: auto; margin: 0 0 14px }
+.note { border-left: 3px solid var(--warn); background: var(--warn-soft); padding: 11px 15px; border-radius: 0 8px 8px 0; margin: 0 0 14px; max-width: 76ch; font-size: 16px }
+.note strong { font-family: var(--display) }
+.tag { display: inline-block; font: 500 11.5px/1.5 var(--mono); padding: 0 7px; border-radius: 99px; white-space: nowrap }
+.tag.ok { background: var(--ok-soft); color: var(--ok) } .tag.bad { background: var(--bad-soft); color: var(--bad) } .tag.warn { background: var(--warn-soft); color: var(--warn) } .tag.acc { background: var(--accent-soft); color: var(--accent) }
+.phase { display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 4px 16px; padding: 12px 0; border-top: 1px dashed var(--line) }
+.phase:first-of-type { border-top: 0 }
+.phase .when { font: 600 13px/1.4 var(--display); color: var(--accent) }
+.phase h3 { margin: 0 0 4px }
+.phase ul { margin: 0 }
+@media (max-width: 560px) { .phase { grid-template-columns: minmax(0, 1fr) } }
+.sources li { font-size: 15px; overflow-wrap: anywhere }
+</style>
+
+<header class="hero">
+  <div class="eyebrow">Ticket0 · Workflows · Full plan</div>
+  <h1>Agents run the canvas workflows</h1>
+  <p class="lede">The complete plan to replace the DBOS runner loop with Mastra agents: one supervisor that talks to the customer and picks the workflow, and one agent per workflow that carries it from start to end. Our server keeps the state and checks every move.</p>
+  <div class="meta">
+    <span class="chip">Runtime: Mastra (TypeScript, inside our server)</span>
+    <span class="chip">Agents: supervisor + one per workflow</span>
+    <span class="chip">State: our Postgres</span>
+    <span class="chip">Status: proposal for review</span>
+  </div>
+</header>
+
+<div class="wrap">
+<nav class="toc" aria-label="Contents">
+  <ol>
+    <li><a href="#summary">Summary</a></li>
+    <li><a href="#today">How it works today</a></li>
+    <li><a href="#arch">Target architecture</a></li>
+    <li><a href="#handoff">Hand-off between agents</a></li>
+    <li><a href="#tools">Tool contract</a></li>
+    <li><a href="#prompts">Prompts</a></li>
+    <li><a href="#blocks">Blocks and the agent</a></li>
+    <li><a href="#turn">One message, end to end</a></li>
+    <li><a href="#waits">Waits and timers</a></li>
+    <li><a href="#models">Model access</a></li>
+    <li><a href="#cost">Cost tracking</a></li>
+    <li><a href="#reliable">Reliability and quality</a></li>
+    <li><a href="#compare">Mastra vs GTWY vs hybrid</a></li>
+    <li><a href="#stages">Stages</a></li>
+    <li><a href="#code">Code changes</a></li>
+    <li><a href="#risks">Risks and fixes</a></li>
+    <li><a href="#decide">Open decisions</a></li>
+    <li><a href="#sources">Sources</a></li>
+  </ol>
+</nav>
+
+<main>
+<section id="summary">
+  <h2>Summary</h2>
+  <div class="verdict">
+    <p><strong>The decision in 5 lines</strong></p>
+    <ol>
+      <li>The DBOS runner loop and our one-off AI calls (<code>route</code>, <code>checkTopic</code>, <code>decideStep</code>, <code>chooseCase</code>, <code>compose</code>) are replaced by Mastra agents.</li>
+      <li>A <b>supervisor agent</b> handles every customer message: it picks the workflow, notices topic changes and off-topic replies, and hands the turn to a <b>workflow agent</b>.</li>
+      <li>Each workflow agent sees a read-only <b>map</b> of its canvas plus the <b>current step</b>, and moves forward only by calling <code>wf_*</code> tools.</li>
+      <li>Our <b>step engine</b> (<code>engine.ts</code>) owns the state. It accepts or rejects every move with a reason. The model never writes state directly.</li>
+      <li>Postgres state, the per-ticket event inbox, the timer sweeper, approvals and idempotency stay ours. The canvas does not change.</li>
+    </ol>
+  </div>
+  <div class="scroll"><table>
+    <thead><tr><th>Area</th><th>What changes</th><th>What stays</th></tr></thead>
+    <tbody>
+      <tr><td>Execution</td><td>The agents drive each turn; no DBOS loop</td><td>Step rules (inputs, conditions, loops, approvals) now live in <code>engine.ts</code></td></tr>
+      <tr><td>AI calls</td><td>One supervisor call, then one workflow-agent turn with tool rounds</td><td>Prompts are versioned with the workflow</td></tr>
+      <tr><td>Routing and topic check</td><td>Done by the supervisor</td><td>The same confidence rules, written into its prompt and tools</td></tr>
+      <tr><td>State</td><td>Written only through <code>wf_*</code> tools</td><td><code>workflow_run</code>, <code>facts</code>, <code>run_event</code> in Postgres</td></tr>
+      <tr><td>Waits</td><td>Inbox events and timer rows instead of DBOS <code>recv</code></td><td>Reminder and expiry times from config</td></tr>
+      <tr><td>Authoring and UI</td><td>Map compiled on publish; the run panel shows agent turns</td><td>Canvas, versions, actions, viaSocket, approvals page, timeline</td></tr>
+    </tbody>
+  </table></div>
+  <div class="note"><strong>Ground rule for the whole doc:</strong> the server owns state. Agents propose moves; the engine decides whether they happen. Anything that reads "the agent does X" means "the agent asks for X through a tool, and the server checks it".</div>
+</section>
+
+<section id="today">
+  <h2>How it works today</h2>
+  <p>Each workflow run is one DBOS workflow, <code>runWorkflow</code> in <code>server/src/runner/workflow.ts</code>, with the id <code>run:&lt;runId&gt;</code>. The loop checkpoints each step, so a crash resumes where it stopped.</p>
+  <div class="diagram"><pre class="mermaid">
+flowchart LR
+  D[decide<br/>AI or rules pick the next move] --> A[act<br/>run a tool, if any]
+  A --> V[advance<br/>update facts, move on]
+  V -->|continue| D
+  V -->|wait or end| F[flush<br/>send the outbox]
+  F --> R[recv<br/>sleep until a signal<br/>or a deadline]
+  R --> P[apply<br/>customer message, approval,<br/>timer, pause, cancel]
+  P --> F2[flush]
+  F2 -->|run| D
+  F2 -->|wait| R
+  </pre></div>
+  <ul>
+    <li><b>decide / act / advance</b> (<code>runner/steps.ts</code>): one block at a time. AI steps call <code>decideStep</code>; AI conditions call <code>chooseCase</code>; rule conditions run in code (<code>chooseByRules</code>).</li>
+    <li><b>facts</b> (<code>workflow_run.facts</code>): collected values, tool outputs, chosen cases, attempts, loop visits, variables, the trail of finished items.</li>
+    <li><b>outbox</b>: replies built during a turn. AI notes are merged by <code>compose</code>; text bubbles go out word for word.</li>
+    <li><b>recv</b>: the run sleeps on a DBOS signal with a deadline (the reminder, then expiry: 120 s and 600 s by default in <code>config.ts</code>).</li>
+    <li><b>route</b> (<code>llm/decider.ts</code>): picks a workflow for a new message. <code>gate</code> maps confidence to human (≥ 0.8 wants human), start (≥ 0.7), clarify (≥ 0.4) or a free reply.</li>
+    <li><b>topic check</b> (<code>run-control.ts</code> → <code>checkTopic</code>): only while a run waits on the customer. <i>new_request</i> with confidence ≥ 0.8 cancels the run and starts the new workflow. <i>neither</i> marks the input as "not an answer", so it asks again.</li>
+    <li><b>Timeline</b>: every step writes <code>run_event</code> rows through <code>addEvent</code>; the run panel reads them.</li>
+  </ul>
+  <h3>Limits</h3>
+  <ul>
+    <li>One block per AI call. The AI never sees the workflow ahead, so it can't use an answer the customer already gave for a later step.</li>
+    <li>Several separate AI calls per message (topic check, decide, choose case, compose) add latency and cost.</li>
+    <li>The control flow is hand-written. Every new block type or edge case means new runner code.</li>
+    <li>The topic check only runs while a run waits on the customer.</li>
+    <li>DBOS adds a second store and its own concepts (checkpoints, recv, signals) for what is mostly "wait for the next event".</li>
+  </ul>
+</section>
+
+<section id="arch">
+  <h2>Target architecture</h2>
+  <div class="diagram"><pre class="mermaid">
+flowchart LR
+  C[Customer message] --> I
+  AP[Approval decided] --> I
+  TM[Timer due] --> I
+  I[(Ticket event inbox<br/>one at a time per ticket)] --> DP[Dispatcher]
+  DP --> SV[Supervisor agent]
+  SV -->|delegate: workflow key + intent| WA[Workflow agent<br/>map + current step]
+  SV -->|no workflow: reply, clarify, handoff| OUT
+  WA -->|wf_* tools| EN[Step engine<br/>engine.ts]
+  SV -->|wf_start / wf_switch / wf_handoff| EN
+  EN --> DB[(Postgres<br/>workflow_run, facts,<br/>run_event, timers)]
+  EN --> AX[Actions<br/>viaSocket, approvals,<br/>idempotency]
+  WA --> OUT[Reply to customer]
+  SW[Timer sweeper] --> TM
+  </pre></div>
+  <h3>Supervisor agent</h3>
+  <ul>
+    <li>Gets every customer message first. Sees the recent conversation, the list of published workflows (name and "when to use") and the active run, if any (workflow, current step, what it is waiting for).</li>
+    <li>Decides one of: continue the active workflow, start a workflow, switch to another workflow, the reply is not an answer, off-topic question, wants a human, or no workflow fits.</li>
+    <li>Replaces <code>route()</code>, <code>gate()</code> and <code>checkTopic()</code>. The same thresholds become rules in its prompt, and the server checks them again in <code>wf_start</code> and <code>wf_switch_workflow</code>.</li>
+    <li>Writes customer text only when no workflow handles the turn (clarifying question, free reply, handoff note).</li>
+  </ul>
+  <h3>Workflow agent (one per workflow)</h3>
+  <ul>
+    <li>Owns the conversation for its workflow from the first step to the end.</li>
+    <li>Gets a read-only <b>workflow map</b>, generated from the canvas on publish: steps, branches, what each input collects and its format, the tools each step may call, loop limits.</li>
+    <li>Gets the <b>current step card</b> and <b>progress</b> from the engine on every turn and in every tool result.</li>
+    <li>Can call only the <code>wf_*</code> tools and the actions the current step allows. The map lets it plan; the engine decides.</li>
+  </ul>
+  <h3>Server guards</h3>
+  <ul>
+    <li><code>engine.ts</code> is a pure module: given the workflow, the facts and a requested move, it returns the new facts and the next step, or a rejection with a reason.</li>
+    <li>Rejected moves include a skipped step, a case that is not in the current condition, an input in the wrong format, a loop over its limit, an action outside its step, and an action that needs approval but has none.</li>
+    <li>A rejection is returned to the agent as a tool error it can act on, for example "Step 2 still needs order_id. Ask the customer for it."</li>
+  </ul>
+  <h3>Stays ours</h3>
+  <ul>
+    <li><b>Postgres state</b>: <code>workflow_run</code>, <code>facts</code>, <code>run_event</code>, <code>approval_task</code>, <code>action_run</code>.</li>
+    <li><b>Event inbox</b>: one row per trigger, processed one at a time per ticket.</li>
+    <li><b>Timer sweeper</b>: reminders, expiry, approval timeouts and the resume window.</li>
+    <li><b>Approvals and idempotency</b>: approval tasks, and one key per side effect.</li>
+  </ul>
+  <p>In the POC a ticket is a row in <code>conversation</code>; "ticket" below means that row.</p>
+</section>
+
+<section id="handoff">
+  <h2>Hand-off between agents</h2>
+  <p>We use <b>delegation</b> (agents as tools). The supervisor calls a workflow agent the way it calls a tool, and gets the result back in the same turn. Control always returns to the supervisor before the next customer message.</p>
+  <h3>Handing over</h3>
+  <ol>
+    <li>The supervisor decides "continue" or "start". For a start, it calls <code>wf_start(workflow)</code> and the engine creates the run.</li>
+    <li>It calls the workflow agent with the workflow key and an <b>intent</b>: <code>answer</code>, <code>not_an_answer</code>, <code>off_topic</code> (with a one-line answer to include) or <code>resume</code> (after an approval or timer).</li>
+    <li>The workflow agent runs its tool loop and writes the reply. That reply is what the customer sees.</li>
+  </ol>
+  <h3>Taking back control</h3>
+  <ul>
+    <li>On the next message the supervisor runs first again, so it sees every topic change, not only those during a wait.</li>
+    <li>The workflow agent can also call <code>wf_yield(reason)</code> when the customer clearly wants something its workflow cannot do. The supervisor then picks again in the same turn.</li>
+    <li>When the run ends (completed, escalated, expired), the next message goes to the supervisor with no active run.</li>
+  </ul>
+  <h3>Shared ticket memory</h3>
+  <ul>
+    <li>One Mastra memory thread per ticket (thread = ticket id, resource = customer). Both agents read the same conversation.</li>
+    <li>Workflow progress is <b>not</b> stored in agent memory. It comes from the engine each turn, so a new or restarted agent always sees the same truth.</li>
+    <li>The workflow agent gets the last 20 messages plus the engine's progress summary, not the whole thread.</li>
+  </ul>
+  <div class="note"><strong>Unverified:</strong> how Mastra passes memory to a delegated agent (shared thread or a copied context) must be checked in Stage 1. If it does not share cleanly, the dispatcher passes the recent messages explicitly.</div>
+  <h3>One voice</h3>
+  <ul>
+    <li>A shared <b>style guide</b> is the first part of every agent's prompt: tone, length, language, no promises a tool has not confirmed, no internal terms.</li>
+    <li>Only one agent writes the customer reply per turn. The supervisor does not add text when it delegates; it passes any off-topic answer to the workflow agent to include.</li>
+    <li>Text bubbles are delivered by the workflow agent inside its reply, word for word. The server checks the reply before sending it (see <a href="#tools">Tool contract</a>).</li>
+  </ul>
+  <h3>Why delegation and not sticky transfer</h3>
+  <div class="scroll"><table>
+    <thead><tr><th></th><th>Delegation (our choice)</th><th>Sticky transfer (GTWY style)</th></tr></thead>
+    <tbody>
+      <tr><td>Who sees the next message</td><td>Always the supervisor</td><td>The transferred agent, until the transfer ends (3 days in GTWY)</td></tr>
+      <tr><td>Topic changes</td><td>Caught on every message</td><td>Only if the workflow agent notices and transfers back</td></tr>
+      <tr><td>Context</td><td>Same thread, progress from the engine</td><td>Variables can be lost on transfer</td></tr>
+      <tr><td>Cost</td><td>Two AI calls per message</td><td>One AI call per message</td></tr>
+    </tbody>
+  </table></div>
+  <p>The extra supervisor call is the price of reliable topic handling. Section <a href="#risks">Risks</a> covers how we keep it small.</p>
+</section>
+
+<section id="tools">
+  <h2>Tool contract</h2>
+  <p>Every tool runs through <code>engine.ts</code> in one database transaction. The ticket id and run id come from the request context, never from model arguments. Every successful call returns the same shape:</p>
+<pre><code>{ ok: true, progress: "Step 2 of 5 done: order_id = ORD-5006",
+  next: { step: "Check order", type: "ai_step", instruction: "...", tools: ["call_lookup_orders"] },
+  say: ["We are checking your order…"] }           // bubble text the agent must include word for word
+{ ok: false, reason: "order_id is missing", fix: "Ask the customer for the order ID (looks like ORD-5001)." }</code></pre>
+  <div class="scroll"><table>
+    <thead><tr><th>Tool</th><th>Arguments</th><th>Server checks</th><th>Returns</th></tr></thead>
+    <tbody>
+      <tr><td><code>wf_start</code> (supervisor)</td><td>workflow key (enum), confidence, reason</td><td>Published and enabled; no active run; confidence ≥ 0.7</td><td>First step card</td></tr>
+      <tr><td><code>wf_save_input</code></td><td>input id, value</td><td>The input is in the current step or one already reachable; format check (<code>checkAnswer</code>); attempts ≤ 3</td><td>Next step card, or the format error</td></tr>
+      <tr><td><code>wf_choose_case</code></td><td>condition id, case id (enum), reason</td><td>Current step is an AI condition; case belongs to it</td><td>First step card of the branch</td></tr>
+      <tr><td><code>wf_complete_step</code></td><td>step id, summary</td><td>Step is current; required actions ran; save-response mappings applied</td><td>Next step card</td></tr>
+      <tr><td><code>call_action</code></td><td>action key, args (strict schema)</td><td>Allowed in the current step; schema valid; approval rule; idempotency key <code>ticket:step:visit</code></td><td>Result, or "waiting for team approval"</td></tr>
+      <tr><td><code>wf_wait_for_customer</code></td><td>what is needed</td><td>The current step needs something from the customer</td><td>OK; reminder and expiry timers set</td></tr>
+      <tr><td><code>wf_switch_workflow</code> (supervisor)</td><td>workflow key, confidence, reason</td><td>Different workflow; confidence ≥ 0.8</td><td>Old run cancelled; first step card of the new one</td></tr>
+      <tr><td><code>wf_resume</code> (supervisor)</td><td>reason</td><td>Run expired inside its resume window; same workflow</td><td>Run reopened at the same step, answers kept</td></tr>
+      <tr><td><code>wf_yield</code> (workflow agent)</td><td>reason</td><td>An active run exists</td><td>OK; supervisor decides next</td></tr>
+      <tr><td><code>wf_handoff</code></td><td>reason</td><td>None</td><td>Run escalated; bot stays quiet on the ticket</td></tr>
+    </tbody>
+  </table></div>
+  <ul>
+    <li><b>Forward answers.</b> <code>wf_save_input</code> accepts an input that appears later in the map, if the path to it does not depend on an unresolved condition. That lets the agent use "my order ORD-5006 never arrived" for two steps at once, without skipping anything.</li>
+    <li><b>Rules run inside tools.</b> When a move lands on a rule condition, a text bubble or a loop edge, the engine resolves it in the same call and reports it in <code>say</code> and <code>progress</code>.</li>
+    <li><b>Bubble check.</b> Bubble text from <code>say</code> is held as pending on the run. Before the reply is sent, the server checks that it contains each pending bubble exactly. If not, the agent is asked once to rewrite it; if it fails again, the server adds the missing bubble text to the reply. A bubble is marked delivered only when the reply goes out.</li>
+    <li><b>Step-scoped tools.</b> Each turn the agent is given only the <code>wf_*</code> tools plus the actions of the current step.</li>
+    <li><b>Hard rejection log.</b> Every rejected call writes a <code>move_rejected</code> event, so we can count invalid-move attempts.</li>
+  </ul>
+</section>
+
+<section id="prompts">
+  <h2>Prompts</h2>
+  <h3>Shared base (all agents)</h3>
+<pre><code>You are Ticket0's support assistant for {{company}}.
+Voice: friendly, short, plain words. Reply in the customer's language.
+Never promise a refund, date or amount that a tool has not confirmed.
+Never mention tools, steps or workflows to the customer.
+If a tool returns ok:false, follow its "fix" exactly.</code></pre>
+  <h3>Workflow agent (built on publish)</h3>
+  <p>The canvas is compiled into a text map once per published version and stored as <code>workflow_version.agent_map</code>. The map is read-only and identical for every run of that version, which also makes it cache-friendly.</p>
+<pre><code>WORKFLOW: Item return (v4)
+When to use: the customer wants to return or exchange an item.
+
+WORKFLOW MAP
+1 Find the order
+  1.1 input order_id (text, "ORD-1234")
+  1.2 ai_step "Look up the order with @lookup_orders" tools: call_lookup_orders  save: status → order_status
+  1.3 condition (rules) order_status = "Delivered" → 2 · else → 3
+2 Return
+  2.1 input reason (text)
+  2.2 ai_step "Create the return with @create_return" tools: call_create_return (needs approval)
+  2.3 bubble "Your return is booked…"
+3 Not delivered yet
+  3.1 bubble "Returns open once the order is delivered."
+  loop → 1.1 if the customer gives another order (max 2 visits, ask again)</code></pre>
+  <h3>Per-turn layout</h3>
+<pre><code>[base prompt]
+[workflow part: name, when to use, WORKFLOW MAP]
+CURRENT STEP: 1.2 ai_step "Look up the order with @lookup_orders" tools: call_lookup_orders
+PROGRESS: 1.1 done (order_id = ORD-5006)
+INTENT: answer
+CONVERSATION (last 20): ...</code></pre>
+  <h3>Supervisor</h3>
+<pre><code>[base prompt]
+PUBLISHED WORKFLOWS: key, name, when to use
+ACTIVE RUN: Item return, at 2.1 waiting for "reason"   (or "none")
+Decide: continue | start | switch | not_an_answer | off_topic | human | none.
+Start only with confidence ≥ 0.7, switch only with ≥ 0.8. Ask one short question when unsure.</code></pre>
+  <ul>
+    <li>Prompts are files in <code>server/src/agents/prompts/</code>, versioned in git. The map is versioned with the workflow.</li>
+    <li>Large workflows: the map shows full detail for the current group and its neighbours, and one line per other group. See <a href="#risks">Risks</a>.</li>
+  </ul>
+</section>
+
+<section id="blocks">
+  <h2>How each block maps to the agent</h2>
+  <div class="scroll"><table>
+    <thead><tr><th>Block</th><th>Agent does</th><th>Server does</th></tr></thead>
+    <tbody>
+      <tr><td>AI step</td><td>Follows the instruction, calls the step's actions, then <code>wf_complete_step</code></td><td>Rejects completion until required actions ran; applies save-response mappings</td></tr>
+      <tr><td>Text bubble</td><td>Gets the text in <code>say</code> and puts it in its reply word for word, with any short lead-in it needs</td><td>Holds the text as pending; checks the reply contains it exactly before sending; marks it delivered</td></tr>
+      <tr><td>Input</td><td>Uses a value the customer already gave, or asks; calls <code>wf_save_input</code></td><td>Format check (text, email, number, phone); wrong format → the block's retry text; after 3 tries → escalate (as today)</td></tr>
+      <tr><td>Condition, rules mode</td><td>Nothing</td><td>Evaluates in code (<code>chooseByRules</code>) the moment it is reached</td></tr>
+      <tr><td>Condition, AI mode</td><td>Picks a case with <code>wf_choose_case</code> and gives a reason</td><td>Checks the case belongs to the condition; records the reason</td></tr>
+      <tr><td>Loop edge (<code>maxVisits</code>, <code>fresh</code>)</td><td>Nothing, unless the loop goes back to an input it has to ask again</td><td>Counts visits; over the limit → escalate; <code>fresh</code> clears the answers it filled, otherwise keeps them</td></tr>
+      <tr><td>Approval (action needs approval)</td><td>Calls the action; tells the customer the team is checking</td><td>Creates <code>approval_task</code>; the run waits; runs the action on approval</td></tr>
+      <tr><td>Save response</td><td>Nothing</td><td>Copies fields from the action result into variables</td></tr>
+      <tr><td>Escalation</td><td><code>wf_handoff(reason)</code> when the customer asks or it cannot help</td><td>Forces it on limits; writes a summary for the team</td></tr>
+    </tbody>
+  </table></div>
+  <p>The rule of thumb: the agent handles language and judgement; code handles anything with one right answer.</p>
+</section>
+
+<section id="turn">
+  <h2>One customer message, end to end</h2>
+  <p>Example: the customer is in "Item return", waiting at input 1.1 (order id).</p>
+  <div class="diagram"><pre class="mermaid">
+sequenceDiagram
+  participant Cu as Customer
+  participant In as Inbox + dispatcher
+  participant Sv as Supervisor
+  participant Wa as Return agent
+  participant En as Engine
+  participant Te as Team
+  Cu->>In: "ORD-5006, the jacket is too small"
+  In->>Sv: event (ticket locked)
+  Sv-->>Sv: continue, intent = answer
+  Sv->>Wa: delegate(item_return, answer)
+  Wa->>En: wf_save_input(order_id, ORD-5006)
+  En-->>Wa: ok, next 1.2 lookup
+  Wa->>En: call_action(lookup_orders)
+  En-->>Wa: Delivered → rules → step 2.1
+  Wa->>En: wf_save_input(reason, "too small")
+  En-->>Wa: ok, next 2.2 create return
+  Wa->>En: call_action(create_return)
+  En-->>Wa: waiting for team approval
+  Wa-->>In: "Thanks! I've asked the team to approve your return."
+  In->>Cu: reply, lock released
+  Te->>In: approved (event)
+  In->>Sv: event approval_decided
+  Sv->>Wa: delegate(item_return, resume)
+  Note over En: engine already ran create_return<br/>bubble 2.3 comes back in say
+  Wa-->>Cu: "Good news, the team approved it. Your return is booked…"
+  </pre></div>
+  <ol>
+    <li>The message is saved and an inbox event is added. The dispatcher takes the next event for this ticket and locks it.</li>
+    <li>The supervisor reads the active run (waiting at 1.1) and the message, and decides <i>continue</i>.</li>
+    <li>The return agent saves the order id, runs the lookup, lands on step 2 through the rule condition, and saves the reason from the same message.</li>
+    <li>The create-return action needs approval, so the engine creates an approval task and sets the run to <code>waiting_approval</code>. The agent tells the customer.</li>
+    <li>When the team approves, an <code>approval_decided</code> event comes in. The engine runs the action first, then the agent is called with <code>resume</code> to tell the customer.</li>
+    <li>If the customer had sent no order id, the agent would call <code>wf_wait_for_customer</code> and ask. The run waits with reminder and expiry timers.</li>
+  </ol>
+</section>
+
+<section id="waits">
+  <h2>Waits and timers</h2>
+  <div class="scroll"><table>
+    <thead><tr><th>Situation</th><th>What we store</th><th>What happens</th></tr></thead>
+    <tbody>
+      <tr><td>Waiting on the customer</td><td><code>waiting_for = customer</code>; timer rows for reminder and expiry</td><td>Nothing runs. The next message is a new inbox event.</td></tr>
+      <tr><td>Reminder due</td><td>Timer row</td><td>The sweeper adds a <code>timer</code> event; the server sends the fixed reminder text (no AI)</td></tr>
+      <tr><td>Expiry due</td><td>Timer row</td><td>The run ends as <code>expired</code> with the closing message, as today</td></tr>
+      <tr><td>Waiting on approval</td><td><code>approval_task</code>, timeout timer</td><td>Decision → event → engine runs or skips the action → agent tells the customer</td></tr>
+      <tr><td>Late reply (after expiry)</td><td>Expired run</td><td>Inside the resume window: the supervisor can reopen it at the same step with <code>wf_resume</code>. Outside: treated as a new request.</td></tr>
+      <tr><td>Resume window</td><td><code>resume_until</code> on the run</td><td>Default 24 h (to decide). Keeps answers so the customer does not repeat them.</td></tr>
+    </tbody>
+  </table></div>
+  <ul>
+    <li>The <b>sweeper</b> runs every 30 seconds: <code>select … from ticket_timer where due_at &lt;= now() and fired_at is null for update skip locked</code>.</li>
+    <li>The <b>inbox worker</b> uses the same <code>skip locked</code> pattern, one ticket at a time, so two messages from one customer never run in parallel.</li>
+    <li>Long waits cost nothing: there is no sleeping process, only rows.</li>
+  </ul>
+  <div class="note"><strong>Not built yet:</strong> the resume window. Today an expired run cannot be reopened. It is listed in Stage 3 and in the open decisions.</div>
+</section>
+
+<section id="models">
+  <h2>Model access</h2>
+  <div class="scroll"><table>
+    <thead><tr><th></th><th>Pure Mastra (direct provider key)</th><th>Hybrid (Mastra loop, models through GTWY)</th></tr></thead>
+    <tbody>
+      <tr><td>How</td><td>Mastra calls OpenAI, Anthropic or another provider with our key</td><td>Mastra calls a GTWY OpenAI-compatible endpoint; GTWY calls the provider</td></tr>
+      <tr><td>Cost and limits</td><td>Ours to build (see <a href="#cost">Cost tracking</a>)</td><td>GTWY logs cost and enforces spending limits</td></tr>
+      <tr><td>Keys</td><td>One more set of provider keys to manage</td><td>Central keys in GTWY</td></tr>
+      <tr><td>Latency</td><td>Direct</td><td>One extra hop per model call</td></tr>
+      <tr><td>Available today</td><td><span class="tag ok">yes</span></td><td><span class="tag bad">no</span> (see below)</td></tr>
+    </tbody>
+  </table></div>
+  <h3>What GTWY has today (checked in the <code>gtwy-ai</code> source)</h3>
+  <p>The only OpenAI-style route is <code>POST /api/v2/model/openai/responses</code>. It is a wrapper around a GTWY agent, not a pass-through:</p>
+  <ul>
+    <li>It requires an <code>agent_id</code>, and that agent's prompt and settings apply.</li>
+    <li>It merges the input into one user text; roles are lost, and the <code>messages</code> field is not used.</li>
+    <li>It drops <code>tools</code> and returns text only, so no tool calls come back to Mastra.</li>
+    <li>No streaming. Usage is returned; cost is logged inside GTWY.</li>
+    <li>There is no <code>/v1/chat/completions</code> route that callers can use.</li>
+  </ul>
+  <p>Mastra's agent loop needs the full message list and tool definitions, and tool calls returned without running them. So the hybrid needs a new GTWY endpoint: <code>/v1/chat/completions</code> pass-through that takes <code>messages</code>, <code>tools</code> and <code>tool_choice</code>, returns <code>tool_calls</code> unexecuted, and keeps GTWY's key handling, cost logging and spending limits.</p>
+  <div class="verdict"><p><strong>Recommendation:</strong> use the hybrid if the GTWY team can provide that endpoint. Until then, start with pure Mastra and a direct key, with the provider and model in config, so moving to GTWY later is a config change.</p></div>
+</section>
+
+<section id="cost">
+  <h2>Cost tracking</h2>
+  <ul>
+    <li><b>Token usage</b>: Mastra returns usage per model call and records it in its traces. We copy it into our own table after every call.</li>
+    <li><b>Dollar cost</b>, two options:
+      <ul>
+        <li><b>Langfuse</b> through Mastra's exporter. It prices tokens per model. Cloud has a free tier with a monthly event limit; self-hosting is open source and free apart from hosting. <span class="tag warn">verify current limits and price</span></li>
+        <li><b>Our own table</b>: <code>llm_usage (ticket_id, run_id, agent, model, input_tokens, output_tokens, cached_tokens, cost_usd, created_at)</code>, priced from a small <code>model_price</code> table we maintain.</li>
+      </ul>
+    </li>
+    <li><b>Recommended:</b> our own table from Stage 1, because spending limits and the run panel need it anyway. Add Langfuse for traces if it is allowed.</li>
+    <li><b>Spending limits</b>: the dispatcher checks the cost per ticket and per org per day before each turn. Over the limit → handoff with "AI budget reached". With the hybrid, GTWY's limits also apply.</li>
+  </ul>
+</section>
+
+<section id="reliable">
+  <h2>Reliability and quality</h2>
+  <h3>Reliability</h3>
+  <ol>
+    <li><b>One turn per ticket at a time</b>: the inbox lock.</li>
+    <li><b>Retries</b>: a failed model call is retried twice with backoff, then the event is retried later. After 3 failed attempts the ticket is handed off with "AI unavailable".</li>
+    <li><b>Idempotency</b>: every action uses the key <code>ticket:step:visit</code>; a repeat returns the stored result from <code>action_run</code>. Inbox events have unique ids, so a duplicate webhook is dropped.</li>
+    <li><b>Crash recovery</b>: the event is marked done only after the reply is saved. A crash mid-turn re-runs the turn; engine state is already committed per tool call, and idempotency stops repeated side effects. Replies are saved before sending and deduplicated by turn id.</li>
+    <li><b>Iteration limits</b>: at most 8 tool calls per turn and 30 turns per run. The same step rejected 3 times in a row → handoff.</li>
+    <li><b>Version pinning</b>: a run keeps the workflow version and map it started with.</li>
+  </ol>
+  <h3>Quality</h3>
+  <ul>
+    <li><b>Scripted chats</b>: about 20 per workflow, covering the happy path, early answers, wrong formats, "I don't know", topic switch, off-topic questions, approval rejected and silence.</li>
+    <li><b>pass^5</b>: each chat runs 5 times; a chat passes only if all 5 pass. Checks read the database (final state, steps visited, actions run), not only the text.</li>
+    <li><b>Invalid moves</b>: count the <code>move_rejected</code> events per chat. Accepted invalid moves must be zero, because the engine should reject them all.</li>
+    <li><b>Tone</b>: a judge model scores replies against the style guide.</li>
+    <li><b>Tracing</b>: each turn stores the supervisor decision, tool calls, rejections, tokens and cost as <code>run_event</code> rows; Mastra traces (and Langfuse, if used) hold the full model calls.</li>
+    <li>The test suite runs on every prompt, map-compiler or model change.</li>
+  </ul>
+</section>
+
+<section id="compare">
+  <h2>Pure Mastra vs pure GTWY vs hybrid</h2>
+  <div class="scroll"><table>
+    <thead><tr><th></th><th>Pure Mastra</th><th>Pure GTWY</th><th class="rec">Hybrid</th></tr></thead>
+    <tbody>
+      <tr><td>Agent loop runs</td><td>In our server</td><td>On GTWY</td><td class="rec">In our server</td></tr>
+      <tr><td>Memory</td><td>Threads in our Postgres, with tool results</td><td>About 3–4 turns, no tool results; we inject context</td><td class="rec">Threads in our Postgres</td></tr>
+      <tr><td>Approvals</td><td>Tool approval built in, plus our approval tasks</td><td>None built in; our tool returns "pending", resume on next event</td><td class="rec">Same as pure Mastra</td></tr>
+      <tr><td>Timers</td><td>Our sweeper</td><td>Our sweeper</td><td class="rec">Our sweeper</td></tr>
+      <tr><td>Cost tracking</td><td>Tokens; dollars via Langfuse or our table</td><td>Cost per call and spending limits built in</td><td class="rec">GTWY cost and limits</td></tr>
+      <tr><td>Prompt editing</td><td>Files in git; deploy to change</td><td>GTWY UI, no deploy</td><td class="rec">Files in git</td></tr>
+      <tr><td>Latency</td><td>Model calls only</td><td>Model calls + an HTTPS round trip per tool call</td><td class="rec">Model calls + one GTWY hop each</td></tr>
+      <tr><td>Rate limits</td><td>Provider's only</td><td>20 per minute per thread, 100 per agent</td><td class="rec">Depends on the new endpoint <span class="tag warn">unverified</span></td></tr>
+      <tr><td>Outage impact</td><td>Provider outage</td><td>GTWY or provider outage</td><td class="rec">GTWY or provider outage</td></tr>
+      <tr><td>Glue code</td><td>Least: tools are functions</td><td>Most: HTTP tool endpoints, context injection, approval workaround</td><td class="rec">Least, plus one model setting</td></tr>
+      <tr><td>Company policy fit</td><td>AI use outside GTWY</td><td>Fits</td><td class="rec">Fits</td></tr>
+      <tr><td>Available now</td><td><span class="tag ok">yes</span></td><td><span class="tag ok">yes</span></td><td class="rec"><span class="tag bad">needs a GTWY endpoint</span></td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="stages">
+  <h2>Stages</h2>
+  <div class="phase"><div class="when">Stage 0<br/>2–3 days</div><div><h3>Decide model access and storage</h3>
+    <ul><li>Ask the GTWY team for the pass-through endpoint described in <a href="#models">Model access</a>; agree a direct provider and key for now.</li>
+    <li>Mastra storage in our Postgres (a separate schema); cost table; Langfuse yes or no.</li>
+    <li><b>Exit:</b> provider, model and storage agreed and written down.</li></ul></div></div>
+  <div class="phase"><div class="when">Stage 1<br/>1–1.5 weeks</div><div><h3>Engine, Mastra, tools</h3>
+    <ul><li>Extract <code>engine.ts</code> from <code>steps.ts</code>: next step, inputs, conditions, loops, approvals, save response. No DB, DBOS or AI inside.</li>
+    <li>The current runner calls the engine, so nothing changes for users. Unit tests for each block type.</li>
+    <li>Add Mastra with Postgres storage. Build the <code>wf_*</code> tools on the engine; tables <code>ticket_event</code>, <code>ticket_timer</code>, <code>llm_usage</code>; dispatcher and sweeper.</li>
+    <li>Map compiler: canvas → <code>agent_map</code> on publish.</li>
+    <li><b>Exit:</b> runner behaviour unchanged (tests and one real chat); every tool tested through a dev endpoint, including each rejection.</li></ul></div></div>
+  <div class="phase"><div class="when">Stage 2<br/>1 week</div><div><h3>One workflow agent (spike)</h3>
+    <ul><li>One workflow agent, no supervisor yet: our router starts the run, then the agent handles "Item return" end to end, with the map, approvals and timers.</li>
+    <li>Per-run switch <code>workflow_run.engine = 'runner' | 'agent'</code>.</li>
+    <li>Run the scripted chats twice, with and without the map. Measure invalid-move attempts, tokens per turn and pass rate.</li>
+    <li><b>Exit:</b> ≥ 95% pass^5; zero accepted invalid moves; under about 6 s per reply; known cost per ticket.</li></ul></div></div>
+  <div class="phase"><div class="when">Stage 3<br/>1.5–2 weeks</div><div><h3>Supervisor plus agents per workflow</h3>
+    <ul><li>Supervisor with <code>wf_start</code>, <code>wf_switch_workflow</code>, <code>wf_handoff</code> and delegation. <code>route()</code> and <code>checkTopic()</code> are no longer called for agent runs.</li>
+    <li>One workflow agent per published workflow, built from the shared base plus its map.</li>
+    <li>Resume window for late replies; spending limits.</li>
+    <li>Rollout: playground, then a share of real tickets, with the runner as fallback. Remove the DBOS runner after two stable weeks.</li>
+    <li><b>Exit:</b> the Stage 2 bar holds with the supervisor; topic-switch and off-topic chats pass; latency still under about 6 s.</li></ul></div></div>
+  <p>Total: about 4–5 weeks for one engineer, with a go/no-go at the end of Stage 2.</p>
+</section>
+
+<section id="code">
+  <h2>Code changes</h2>
+  <div class="scroll"><table>
+    <thead><tr><th>Path</th><th>Change</th><th>What</th></tr></thead>
+    <tbody>
+      <tr><td><code>server/src/engine/engine.ts</code></td><td><span class="tag acc">add</span></td><td>Pure step rules, moved out of <code>runner/steps.ts</code></td></tr>
+      <tr><td><code>server/src/engine/map.ts</code></td><td><span class="tag acc">add</span></td><td>Canvas → workflow map and step cards</td></tr>
+      <tr><td><code>server/src/agents/</code></td><td><span class="tag acc">add</span></td><td>Mastra setup, supervisor, workflow agent factory, prompts, <code>wf_*</code> tools</td></tr>
+      <tr><td><code>server/src/inbox/</code></td><td><span class="tag acc">add</span></td><td>Event inbox worker, dispatcher, timer sweeper</td></tr>
+      <tr><td><code>server/src/usage/</code></td><td><span class="tag acc">add</span></td><td><code>llm_usage</code>, price table, spending limits</td></tr>
+      <tr><td><code>server/src/evals/</code></td><td><span class="tag acc">add</span></td><td>Scripted chats and the pass^k runner</td></tr>
+      <tr><td><code>server/migrations/0010_agents.sql</code></td><td><span class="tag acc">add</span></td><td><code>ticket_event</code>, <code>ticket_timer</code>, <code>llm_usage</code>, <code>model_price</code>; <code>workflow_run.engine</code>, <code>resume_until</code>; <code>workflow_version.agent_map</code></td></tr>
+      <tr><td><code>server/src/runner/steps.ts</code></td><td><span class="tag warn">change</span></td><td>Calls <code>engine.ts</code>; kept only for runner-engine runs</td></tr>
+      <tr><td><code>server/src/runner/run-control.ts</code></td><td><span class="tag warn">change</span></td><td>New messages become inbox events for agent runs</td></tr>
+      <tr><td><code>server/src/workflows/workflows.service.ts</code></td><td><span class="tag warn">change</span></td><td>Compiles the map on publish</td></tr>
+      <tr><td><code>server/src/actions/execute.ts</code></td><td><span class="tag warn">change</span></td><td>Called by <code>call_action</code>; idempotency key per step visit</td></tr>
+      <tr><td><code>server/src/playground/playground.controller.ts</code></td><td><span class="tag warn">change</span></td><td>Returns agent turns, tool calls and usage</td></tr>
+      <tr><td><code>web/src/components/run-timeline.tsx</code></td><td><span class="tag warn">change</span></td><td>Sentences for supervisor decisions, tool calls and rejected moves</td></tr>
+      <tr><td><code>web/src/components/run-panel.tsx</code></td><td><span class="tag warn">change</span></td><td>"Agent turns" view (tools, tokens, cost) replaces the DBOS toggle for agent runs</td></tr>
+      <tr><td><code>web/src/app/workflows/</code></td><td><span class="tag warn">change</span></td><td>"Preview agent map" on the canvas</td></tr>
+      <tr><td><code>server/src/runner/workflow.ts</code>, the rest of <code>steps.ts</code></td><td><span class="tag bad">remove later</span></td><td>DBOS loop, after rollout</td></tr>
+      <tr><td><code>server/src/llm/decider.ts</code></td><td><span class="tag bad">remove later</span></td><td><code>route</code>, <code>gate</code>, <code>checkTopic</code>, <code>decideStep</code>, <code>chooseCase</code>, <code>compose</code></td></tr>
+      <tr><td><code>server/src/llm/gtwy.ts</code></td><td><span class="tag bad">remove later</span></td><td>Only if we stay on pure Mastra</td></tr>
+      <tr><td><code>web/src/components/dbos-steps.tsx</code></td><td><span class="tag bad">remove later</span></td><td>With the DBOS runner</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="risks">
+  <h2>Risks and fixes</h2>
+  <div class="scroll"><table>
+    <thead><tr><th>Risk</th><th>Fix</th></tr></thead>
+    <tbody>
+      <tr><td>Two AI calls per message (latency and cost)</td><td>Small, fast model for the supervisor with a short prompt; cache the stable prompt parts. If still too slow: skip the supervisor when the run waits on an input and the reply passes the format check, and let the workflow agent call <code>wf_yield</code> when needed. Measure in Stage 3.</td></tr>
+      <tr><td>Big workflow maps</td><td>Full detail only for the current group and its neighbours; one line for other groups; a size budget checked on publish.</td></tr>
+      <tr><td>Mastra API churn; durable agents in beta</td><td>Pin exact versions; we do not use durable agents (our inbox gives durability); upgrades go through the eval suite.</td></tr>
+      <tr><td>Provider outage</td><td>A second provider in config; events wait in the inbox; after the retry budget, handoff.</td></tr>
+      <tr><td>Model skips steps</td><td>The engine rejects it; step-scoped tools; <code>move_rejected</code> counted in evals; 3 rejections in a row → handoff.</td></tr>
+      <tr><td>Cost spikes</td><td>Tool-call and turn limits; per-ticket and per-org daily caps; alerts on cost per ticket.</td></tr>
+      <tr><td>Agent paraphrases fixed text</td><td>The agent delivers bubbles, but the server checks each reply contains the bubble text exactly; one rewrite, then the server adds the missing text. Evals count bubbles that needed a fix.</td></tr>
+      <tr><td>Two voices</td><td>Shared style guide; one writer per turn.</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="decide">
+  <h2>Open decisions</h2>
+  <div class="scroll"><table>
+    <thead><tr><th>Decision</th><th>Recommended answer</th></tr></thead>
+    <tbody>
+      <tr><td>Model access</td><td>Direct provider now; move to GTWY when the pass-through endpoint exists</td></tr>
+      <tr><td>Which provider and models</td><td>A fast, small model for the supervisor; a stronger one for workflow agents; decide on Stage 2 numbers</td></tr>
+      <tr><td>Langfuse</td><td>Self-host or free tier for traces, if data rules allow; our own table for cost either way</td></tr>
+      <tr><td>Supervisor on every message</td><td>Yes at first; add the input fast path only if latency misses the target</td></tr>
+      <tr><td>Can the supervisor answer FAQs itself</td><td>Only short answers when no workflow is active; otherwise it passes them to the workflow agent</td></tr>
+      <tr><td>Resume window</td><td>24 hours, keep collected answers</td></tr>
+      <tr><td>Keep the DBOS runner</td><td>As fallback during rollout; remove after two stable weeks</td></tr>
+      <tr><td>Who owns the spike and the exit bar</td><td>One engineer; the Stage 2 bar as written</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="sources">
+  <h2>Sources</h2>
+  <ul class="sources">
+    <li>Our code: <code>server/src/runner/</code> (<code>workflow.ts</code>, <code>steps.ts</code>, <code>run-control.ts</code>, <code>blocks.ts</code>), <code>server/src/llm/decider.ts</code>, <code>server/src/types.ts</code>, <code>server/src/config.ts</code>, <code>web/src/components/run-panel.tsx</code>, <code>run-timeline.tsx</code></li>
+    <li>Earlier plan: <code>docs/agent-run-workflows-plan.html</code></li>
+    <li>GTWY: read from the local <code>gtwy-ai</code> source (<code>routes/v2/modelRouter.py</code>, <code>middlewares/openai_sdk_middleware.py</code>, <code>services/utils/openai_sdk_utils.py</code>, rate limits, threads, transfer)</li>
+    <li>Mastra: <a href="https://mastra.ai/docs/agents/overview">agents</a>, <a href="https://mastra.ai/docs/memory/overview">memory</a>, <a href="https://mastra.ai/docs/workflows/overview">workflows</a>, <a href="https://mastra.ai/docs/agents/durable-agents">durable agents</a>, <a href="https://mastra.ai/blog/hitl-where-to-put-approval-in-agents-and-workflows">tool approval</a></li>
+    <li>Agno: <a href="https://docs.agno.com/agent-os/introduction">AgentOS</a> (considered, not chosen: separate Python service)</li>
+    <li>Langfuse: <a href="https://langfuse.com/pricing">pricing</a>, <a href="https://langfuse.com/self-hosting">self-hosting</a></li>
+    <li>Patterns: Decagon <a href="https://decagon.ai/resources/from-sops-to-agent-operating-procedures">AOPs</a>, Intercom <a href="https://fin.ai/help/en/articles/12628343-fin-procedures-explained">Fin Procedures</a>, Sierra <a href="https://sierra.ai/blog/benchmarking-ai-agents">τ-bench</a>, Anthropic <a href="https://www.anthropic.com/engineering/building-effective-agents">building effective agents</a>, OpenAI <a href="https://openai.github.io/openai-agents-python/handoffs/">Agents SDK handoffs</a></li>
+  </ul>
+</section>
+</main>
+</div>

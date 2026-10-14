@@ -1,0 +1,62 @@
+# Render Blueprint: Postgres + API (NestJS + Mastra agents) + web (Next.js).
+# Render → New → Blueprint → pick this repo. It asks for the secrets marked sync: false.
+databases:
+  - name: workflow-poc-agentic-db
+    databaseName: workflow_poc_agentic
+    plan: free
+
+services:
+  - type: web
+    name: workflow-poc-agentic-api
+    runtime: node
+    rootDir: server
+    plan: free
+    buildCommand: npm ci && npm run build
+    # Migrations run on every start (each file applies once); Mastra creates its own "mastra" schema.
+    startCommand: npm run db:setup && npm start
+    healthCheckPath: /actions
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: workflow-poc-agentic-db
+          property: connectionString
+      - key: CORS_ORIGINS
+        value: https://workflow-poc-agentic-web.onrender.com
+      - key: LLM_PROVIDER
+        value: openai
+      - key: LLM_MODEL
+        value: gpt-6-luna
+      - key: REMIND_AFTER_SEC
+        value: "120"
+      - key: EXPIRE_AFTER_SEC
+        value: "600"
+      - key: APPROVAL_TIMEOUT_SEC
+        value: "1800"
+      - key: VIASOCKET_UID
+        value: workflow-poc-agentic
+      - key: LLM_API_KEY
+        sync: false
+      - key: VIASOCKET_ORG_ID
+        sync: false
+      - key: VIASOCKET_PROJECT_ID
+        sync: false
+      - key: VIASOCKET_EMBED_SECRET
+        sync: false
+
+  - type: web
+    name: workflow-poc-agentic-web
+    runtime: node
+    rootDir: web
+    plan: free
+    buildCommand: npm ci && npm run build
+    startCommand: npx next start -p $PORT -H 0.0.0.0
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      # Browser calls go to /api on this site; Next forwards them to the API service.
+      - key: NEXT_PUBLIC_API_URL
+        value: /api
+      - key: API_ORIGIN
+        value: https://workflow-poc-agentic-api.onrender.com

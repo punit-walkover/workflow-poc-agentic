@@ -1,0 +1,459 @@
+<title>Agent-Run Workflows Plan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a decision document — sticky contents rail + one reading column; comparison tables and diagrams scroll in their own boxes. */
+:root {
+  --bg: #f5f6f8; --panel: #ffffff; --ink: #1a1f2b; --ink-2: #4b5466; --line: #dde1e8;
+  --accent: #3b5bdb; --accent-soft: #e8edfc; --code: #eef0f5;
+  --ok: #217a4b; --ok-soft: #e2f3e9; --warn: #8f6210; --warn-soft: #fbf0d9; --bad: #b02a22; --bad-soft: #fbe5e3;
+  --dot: #d4d9e3;
+  --display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --body: "Source Serif 4", Georgia, "Times New Roman", serif;
+  --mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #11141a; --panel: #181c24; --ink: #e5e8ef; --ink-2: #a2aabb; --line: #2a303c;
+  --accent: #8aa2ff; --accent-soft: #1d2744; --code: #1f2430;
+  --ok: #6fd19a; --ok-soft: #163225; --warn: #e3b25c; --warn-soft: #382d18; --bad: #f08a80; --bad-soft: #3b1d1b; --dot: #252b37; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #11141a; --panel: #181c24; --ink: #e5e8ef; --ink-2: #a2aabb; --line: #2a303c;
+  --accent: #8aa2ff; --accent-soft: #1d2744; --code: #1f2430;
+  --ok: #6fd19a; --ok-soft: #163225; --warn: #e3b25c; --warn-soft: #382d18; --bad: #f08a80; --bad-soft: #3b1d1b; --dot: #252b37; color-scheme: dark }
+
+* { box-sizing: border-box }
+html { scroll-behavior: smooth }
+body { background: var(--bg); color: var(--ink); font: 17px/1.65 var(--body); padding-inline: 16px; padding-block: 0 72px }
+.wrap { max-width: 1120px; margin: 0 auto; display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 48px }
+@media (max-width: 880px) { .wrap { grid-template-columns: minmax(0, 1fr) } nav.toc { display: none } }
+
+header.hero { max-width: 1120px; margin: 0 auto 36px; padding-block: 44px 28px; border-bottom: 1px solid var(--line);
+  background-image: radial-gradient(var(--dot) 1.2px, transparent 1.2px); background-size: 22px 22px }
+.eyebrow { font: 500 12px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--accent) }
+h1 { font: 700 clamp(30px, 5vw, 46px)/1.1 var(--display); margin: 12px 0 14px; text-wrap: balance; letter-spacing: -.01em }
+.lede { font-size: 19px; color: var(--ink-2); max-width: 68ch; margin: 0 }
+.meta { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px }
+.chip { font: 500 12px/1 var(--mono); padding: 6px 9px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); color: var(--ink-2) }
+
+nav.toc { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 20px); align-self: start; font: 13.5px/1.45 var(--display); max-height: calc(100vh - 40px); overflow-y: auto; padding-bottom: 20px }
+nav.toc ol { list-style: none; padding: 0; margin: 0; display: grid; gap: 5px; counter-reset: s }
+nav.toc a { color: var(--ink-2); text-decoration: none; display: flex; gap: 8px }
+nav.toc a::before { counter-increment: s; content: counter(s); font: 12px/1.6 var(--mono); color: var(--accent); width: 18px; flex: none }
+nav.toc a:hover, nav.toc a:focus-visible { color: var(--ink) }
+
+main { min-width: 0 }
+section { padding-block: 6px 26px; border-bottom: 1px solid var(--line); margin-bottom: 26px; scroll-margin-top: 16px }
+section:last-child { border-bottom: 0 }
+h2 { font: 700 25px/1.25 var(--display); margin: 0 0 10px; text-wrap: balance }
+h3 { font: 600 17.5px/1.3 var(--display); margin: 22px 0 8px }
+p, li { max-width: 72ch }
+p { margin: 0 0 12px }
+ul, ol { padding-left: 22px; margin: 0 0 12px }
+li { margin-bottom: 4px }
+code { font: 13.5px var(--mono); background: var(--code); padding: 1px 5px; border-radius: 4px; overflow-wrap: anywhere }
+pre { font: 13px/1.55 var(--mono); background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 13px 15px; overflow-x: auto; margin: 0 0 14px }
+pre code { background: none; padding: 0; overflow-wrap: normal }
+a { color: var(--accent) }
+a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+
+.verdict { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--accent); border-radius: 0 10px 10px 0; padding: 16px 20px; margin: 0 0 16px }
+.verdict p { margin: 0 0 8px } .verdict p:last-child { margin: 0 }
+.verdict strong { font-family: var(--display) }
+.scroll { overflow-x: auto; margin: 0 0 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel) }
+table { border-collapse: collapse; width: 100%; font-size: 14.5px; min-width: 660px }
+th, td { text-align: left; padding: 8px 11px; border-bottom: 1px solid var(--line); vertical-align: top }
+th { font: 600 11.5px/1.3 var(--display); text-transform: uppercase; letter-spacing: .06em; color: var(--ink-2); background: var(--bg) }
+tr:last-child td { border-bottom: 0 }
+td:first-child { font-family: var(--display); font-weight: 600; font-size: 14px }
+.rec { background: var(--accent-soft) }
+.diagram { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px; overflow-x: auto; margin: 0 0 14px }
+.note { border-left: 3px solid var(--warn); background: var(--warn-soft); padding: 11px 15px; border-radius: 0 8px 8px 0; margin: 0 0 14px; max-width: 76ch; font-size: 16px }
+.note strong { font-family: var(--display) }
+.tag { display: inline-block; font: 500 11.5px/1.5 var(--mono); padding: 0 7px; border-radius: 99px; white-space: nowrap }
+.tag.ok { background: var(--ok-soft); color: var(--ok) } .tag.bad { background: var(--bad-soft); color: var(--bad) } .tag.warn { background: var(--warn-soft); color: var(--warn) } .tag.acc { background: var(--accent-soft); color: var(--accent) }
+.phase { display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 4px 16px; padding: 12px 0; border-top: 1px dashed var(--line) }
+.phase:first-of-type { border-top: 0 }
+.phase .when { font: 600 13px/1.4 var(--display); color: var(--accent) }
+.phase h3 { margin: 0 0 4px }
+.phase ul { margin: 0 }
+@media (max-width: 560px) { .phase { grid-template-columns: minmax(0, 1fr) } }
+.sources li { font-size: 15px; overflow-wrap: anywhere }
+</style>
+
+<header class="hero">
+  <div class="eyebrow">Ticket0 · Workflows · Architecture proposal</div>
+  <h1>Let the agent run the workflow</h1>
+  <p class="lede">How to drop our own runner loop and have a GTWY agent execute canvas workflows when a ticket is created, without losing the things the runner guarantees today: the right step order, approvals, waits that last days, safe tool calls and a clear audit trail.</p>
+  <div class="meta">
+    <span class="chip">Agent: GTWY (one agent, server-side tool loop)</span>
+    <span class="chip">Authoring: our canvas, unchanged</span>
+    <span class="chip">Status: proposal for review</span>
+  </div>
+</header>
+
+<div class="wrap">
+<nav class="toc" aria-label="Contents">
+  <ol>
+    <li><a href="#answer">Short answer</a></li>
+    <li><a href="#options">Three ways to do it</a></li>
+    <li><a href="#gtwy">What GTWY gives us</a></li>
+    <li><a href="#frameworks">Mastra or Agno?</a></li>
+    <li><a href="#now">Options for now</a></li>
+    <li><a href="#stages">Roadmap: multi-agent on Mastra</a></li>
+    <li><a href="#arch">Target architecture</a></li>
+    <li><a href="#blocks">How each block runs</a></li>
+    <li><a href="#contract">The agent contract</a></li>
+    <li><a href="#turn">One turn, end to end</a></li>
+    <li><a href="#waits">Waits, timers, approvals</a></li>
+    <li><a href="#reliable">Reliability rules</a></li>
+    <li><a href="#quality">Quality and evals</a></li>
+    <li><a href="#code">What changes in our code</a></li>
+    <li><a href="#phases">Rollout plan</a></li>
+    <li><a href="#risks">Risks</a></li>
+    <li><a href="#decide">Decisions needed</a></li>
+    <li><a href="#sources">Sources</a></li>
+  </ol>
+</nav>
+
+<main>
+<section id="answer">
+  <h2>Short answer</h2>
+  <div class="verdict">
+    <p><strong>Yes, the agent can drive the workflow, but it should not be the place the workflow state lives.</strong> The pattern every serious support product converged on (Decagon AOPs, Intercom Fin Procedures, Sierra, Rasa CALM, Parlant) is: <em>the agent drives, our server guards</em>.</p>
+    <p>The GTWY agent talks to the customer, decides what to do, and calls tools. Our server holds the ticket's current step, variables, loop counts and pending approvals, and every tool call is checked against that state. The step-by-step <b>runner loop</b> (decide → act → advance → flush → wait) goes away; what stays on our side is a small <b>event inbox</b>, a set of <b>workflow tools</b>, and a <b>timer sweeper</b>.</p>
+    <p>Letting the model hold everything in its prompt and memory is not robust enough today: GTWY keeps about 3 turns of history without tool results, has no durable waits or approval pause, and benchmark data shows tool-calling agents follow written policies inconsistently (τ-bench: under 50% task success, about 25% pass^8 in retail).</p>
+  </div>
+</section>
+
+<section id="options">
+  <h2>Three ways to do it</h2>
+  <div class="scroll"><table>
+    <thead><tr><th></th><th>A. Our runner (today)</th><th class="rec">B. Agent drives, server guards (recommended)</th><th>C. Fully agent-native</th></tr></thead>
+    <tbody>
+      <tr><td>Who decides the next step</td><td>Our DBOS loop</td><td class="rec">The agent, through workflow tools our server validates</td><td>The agent, from a prompt that contains the whole workflow</td></tr>
+      <tr><td>Where state lives</td><td>Our DB</td><td class="rec">Our DB (agent reads it every turn)</td><td>GTWY thread memory (3 turns, no tool results)</td></tr>
+      <tr><td>Conversation feel</td><td>Stepwise, sometimes rigid</td><td class="rec">Natural: can answer side questions, skip asks when the info is already given</td><td>Most natural</td></tr>
+      <tr><td>Step order guaranteed</td><td><span class="tag ok">yes</span></td><td class="rec"><span class="tag ok">yes</span> transitions validated server-side</td><td><span class="tag bad">no</span> model can skip or repeat</td></tr>
+      <tr><td>Approvals, waits of days</td><td><span class="tag ok">yes</span> DBOS recv</td><td class="rec"><span class="tag ok">yes</span> state + timer sweeper + events</td><td><span class="tag bad">no</span> GTWY has no pause/resume</td></tr>
+      <tr><td>Safe tool calls (no double refund)</td><td><span class="tag ok">yes</span></td><td class="rec"><span class="tag ok">yes</span> tools proxied, idempotency keys</td><td><span class="tag warn">partly</span> GTWY may re-run tools (reviewer, retries)</td></tr>
+      <tr><td>Our code to maintain</td><td>Most (runner loop)</td><td class="rec">Less: tools + inbox + sweeper</td><td>Least</td></tr>
+      <tr><td>AI cost per turn</td><td>1–3 small calls</td><td class="rec">1 agent call with 1–4 tool rounds</td><td>1 agent call</td></tr>
+    </tbody>
+  </table></div>
+  <p>Option C fails on exactly the parts customers notice: a refund that ran twice, an approval that never resumed, a step skipped because the model was confident. Option B keeps those guarantees while handing conversation and judgement to the agent.</p>
+</section>
+
+<section id="gtwy">
+  <h2>What GTWY gives us, and what it does not</h2>
+  <p>From reading the GTWY source (<code>gtwy-ai</code>), not the docs alone.</p>
+  <div class="scroll"><table>
+    <thead><tr><th>Need</th><th>GTWY today</th><th>Consequence</th></tr></thead>
+    <tbody>
+      <tr><td>Agent calls our tools in a loop</td><td><span class="tag ok">yes</span> server-side loop; <code>extra_tools</code> per request (HTTP URL, headers, schema); parallel calls per round</td><td>Workflow tools are just HTTP endpoints on our server</td></tr>
+      <tr><td>Hide ticket id from the model</td><td><span class="tag ok">yes</span> <code>variables</code> + <code>variables_path</code> inject args server-side</td><td>The model never types ticket ids; it cannot act on the wrong ticket</td></tr>
+      <tr><td>Step-scoped tools</td><td><span class="tag ok">yes</span> because <code>extra_tools</code> is per request</td><td>We send only the tools the current step allows</td></tr>
+      <tr><td>Enough tool rounds</td><td><span class="tag warn">default 3</span> <code>settings.maximum_iterations</code></td><td>Raise to ~8; treat <code>maximum_iteration_limit_reached</code> as "maybe incomplete"</td></tr>
+      <tr><td>Conversation memory</td><td><span class="tag warn">3–4 turns</span>, no tool arguments/results, per agent</td><td>We inject transcript + state through variables each turn</td></tr>
+      <tr><td>Async replies</td><td><span class="tag ok">yes</span> webhook mode, payload echoes variables</td><td>Dedupe by <code>message_id</code>; only gateway errors are retried</td></tr>
+      <tr><td>Timers / reminders</td><td><span class="tag bad">none</span></td><td>We need a sweeper that triggers turns</td></tr>
+      <tr><td>Human approval pause</td><td><span class="tag bad">none</span> (plan mode's <code>waiting_for_user</code> is SSE-only, not durable)</td><td>Approval is a tool that records a pending action and ends the turn</td></tr>
+      <tr><td>Hard guardrails</td><td><span class="tag warn">soft</span> reviewer loop (3 rounds, may re-run tools); guardrail validator not wired in</td><td>Enforcement belongs in our tool endpoints</td></tr>
+      <tr><td>Rate limits</td><td>20 req/min per <code>thread_id</code>, 100 per agent</td><td>One in-flight call per ticket; queue the rest</td></tr>
+      <tr><td>Cost visibility</td><td><span class="tag ok">yes</span> usage + cost per response</td><td>Store per turn for cost-per-ticket reporting</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="frameworks">
+  <h2>Could Mastra or Agno do this for us?</h2>
+  <p>Both are agent frameworks that could replace GTWY as the place the agent loop runs. Neither can run our canvas directly: their workflows are code-composed (sequence, branch, parallel, loop), with no documented "jump back to any earlier step", so in every option the agent still drives the run through <b>our</b> workflow tools and step engine (option B). The question is only which runtime hosts the agent.</p>
+  <div class="scroll"><table>
+    <thead><tr><th>Need</th><th>GTWY</th><th>Mastra (TypeScript)</th><th>Agno AgentOS (Python)</th></tr></thead>
+    <tbody>
+      <tr><td>Agent calls our tools in a loop</td><td><span class="tag ok">yes</span> remote, server-side loop</td><td><span class="tag ok">yes</span> in our Node process</td><td><span class="tag ok">yes</span> separate service</td></tr>
+      <tr><td>Memory per ticket</td><td><span class="tag warn">3–4 turns</span>, no tool results</td><td><span class="tag ok">yes</span> threads + working memory in our Postgres</td><td><span class="tag ok">yes</span> sessions + memory in our Postgres</td></tr>
+      <tr><td>Pause a tool call for approval</td><td><span class="tag bad">no</span></td><td><span class="tag ok">yes</span> <code>requireApproval</code> → <code>approveToolCall</code></td><td><span class="tag ok">yes</span> <code>@approval</code> tools, pending row in DB, <code>POST /approvals/{id}/resolve</code></td></tr>
+      <tr><td>Resume days later / after restart</td><td>n/a</td><td><span class="tag warn">workflow snapshots yes</span>; durable agents are beta</td><td><span class="tag warn">not documented</span> for approvals; durable queue covers accepted runs</td></tr>
+      <tr><td>Crash-safe runs</td><td>n/a (stateless calls)</td><td><span class="tag warn">beta</span> durable agents; Inngest for production</td><td><span class="tag ok">yes</span> <code>QueueConfig(durable=True)</code> on Postgres</td></tr>
+      <tr><td>Per-ticket reminders ("in 2 minutes")</td><td><span class="tag bad">no</span></td><td><span class="tag warn">sleep / sleepUntil</span>; durability on default runner unclear</td><td><span class="tag bad">no</span> scheduler is cron-only (recurring jobs)</td></tr>
+      <tr><td>Run monitoring UI</td><td>GTWY history</td><td>Studio (graph, time travel)</td><td>Control Plane</td></tr>
+      <tr><td>Fits our stack</td><td><span class="tag ok">yes</span> HTTP API</td><td><span class="tag ok">yes</span> same language as NestJS</td><td><span class="tag warn">extra Python service</span></td></tr>
+      <tr><td>Keeps GTWY as the AI platform</td><td><span class="tag ok">yes</span></td><td><span class="tag bad">no</span> calls model providers directly (unless GTWY offers an OpenAI-compatible endpoint)</td><td><span class="tag bad">no</span> same</td></tr>
+    </tbody>
+  </table></div>
+  <ul>
+    <li><b>Still ours in every option:</b> the step engine and workflow tools (step order, input checks, rules, loop limits, idempotent tool calls), the per-ticket event inbox, and the timer sweeper for reminders and expiry. Agno's scheduler is cron-only, and Mastra's sleep durability is unclear, so neither replaces per-ticket timers.</li>
+    <li><b>What a framework would save:</b> conversation memory, the approval pause and a monitoring UI. With GTWY we build the approval pause ourselves (a tool that records a pending task) and pass context per turn.</li>
+  </ul>
+  <div class="verdict">
+    <p><strong>Recommendation.</strong> <b>Mastra</b> is the chosen direction: same language as our server, tool approval, and memory in our Postgres. Agno is not pursued (it would add a Python service). A GTWY agent stays as the fallback if Mastra can't be used, for example if no model provider can be agreed; ideally Mastra still calls models through GTWY via an OpenAI-compatible endpoint (Stage 0).</p>
+  </div>
+</section>
+
+<section id="now">
+  <h2>Options for what to do now</h2>
+  <div class="scroll"><table>
+    <thead><tr><th>Option</th><th>What it is</th><th>Effort</th><th>Keeps GTWY</th><th>Main risk</th></tr></thead>
+    <tbody>
+      <tr><td>1. Harden the current runner</td><td>Keep DBOS runner; add park/resume window, cold-start fixes, more blocks</td><td>Low (days)</td><td><span class="tag ok">yes</span></td><td>Conversations stay more rigid; we keep owning all AI orchestration</td></tr>
+      <tr class="rec"><td>2. Agent on GTWY (option B)</td><td>GTWY agent + our <code>wf_*</code> tools, event queue, sweeper</td><td>~4 weeks to production</td><td><span class="tag ok">yes</span></td><td>GTWY gaps (memory, approval pause) built by us</td></tr>
+      <tr class="rec"><td>3. Agent on Mastra</td><td>Same design, agent loop in our Node service</td><td>~4 weeks; spike 1 week</td><td><span class="tag bad">no</span> (unless OpenAI-compatible GTWY)</td><td>Younger APIs (durable agents beta)</td></tr>
+      <tr><td>4. Agent on Agno AgentOS</td><td>Same design, Python service beside NestJS</td><td>~1–1.5 week POC</td><td><span class="tag bad">no</span></td><td>Second language/stack; resume-after-restart for approvals undocumented</td></tr>
+    </tbody>
+  </table></div>
+  <p><b>Chosen path:</b> option 3, Mastra, built in the stages below. Option 1 keeps running as the baseline until Mastra passes its spike on the same workflow, tools and test chats (pass^5, latency, cost per ticket). Option 2, a GTWY agent, stays only as the fallback if Mastra can't be used; option 4 is not pursued.</p>
+  <div class="note"><strong>Decided: multi-agent on Mastra, built in stages.</strong> We start with one Mastra agent on top of our step engine and <code>wf_*</code> tools (Stages 1–2). Once that passes the spike, we split it into a supervisor/router agent plus one agent per workflow or domain (Stage 3), all sharing the same tools and ticket memory. The server still owns all workflow state, and timers stay on our side.</div>
+</section>
+
+<section id="stages">
+  <h2>Roadmap: multi-agent on Mastra</h2>
+  <div class="phase"><div class="when">Stage 0</div><div><h3>Decide</h3>
+    <ul><li>Ask the GTWY team for an OpenAI-compatible endpoint, so Mastra can still call models through GTWY. Otherwise agree which model provider Mastra calls.</li>
+    <li>State lives in our Postgres: Mastra storage for memory and threads, our own tables for workflow runs.</li></ul></div></div>
+  <div class="phase"><div class="when">Stage 1</div><div><h3>Foundation (no behaviour change)</h3>
+    <ul><li><b>Extract the step engine:</b> move next-step, input, condition, loop-limit, bubble and approval rules from <code>steps.ts</code> into a pure <code>engine.ts</code> (no DB, DBOS or AI). The current runner calls it; unit tests plus one real chat prove nothing changed.</li>
+    <li><b>Add Mastra to the server</b> with Postgres storage and a configurable model provider. Not connected to customers yet.</li>
+    <li><b>Build the <code>wf_*</code> tools as Mastra tools over the engine:</b> <code>wf_save_input</code>, <code>wf_choose_case</code>, <code>wf_complete_step</code>, <code>wf_handoff</code>, <code>wf_switch_workflow</code>, <code>call_action</code>. Each returns the next step; approvals and idempotency are enforced; testable through a dev endpoint.</li></ul></div></div>
+  <div class="phase"><div class="when">Stage 2</div><div><h3>One Mastra agent (spike)</h3>
+    <ul><li>A single workflow agent drives "To know Order Status" through the <code>wf_*</code> tools, with memory per ticket and <code>requireApproval</code> tied to our approval tasks.</li>
+    <li>About 20 scripted chats × 5 runs. <b>Exit:</b> ≥ 95% pass^5, no out-of-step tool calls, under ~6 s per reply, known cost per ticket.</li></ul></div></div>
+  <div class="phase"><div class="when">Stage 3</div><div><h3>Multi-agent</h3>
+    <ul><li>A supervisor agent replaces <code>route()</code> and the topic check, and hands each turn to a workflow or domain agent with its own prompt and tools.</li>
+    <li>All agents share the ticket's memory and the same step engine; a shared style guide keeps one voice.</li>
+    <li>Our per-ticket event queue and timer sweeper stay, for reminders, expiry and resume windows.</li></ul></div></div>
+  <div class="note"><strong>Watch-outs.</strong> A supervisor means two AI calls per message, so more latency and cost. Mastra's APIs change often: pin versions, and remember durable agents are beta.</div>
+</section>
+
+<section id="arch">
+  <h2>Target architecture</h2>
+  <div class="diagram"><pre class="mermaid">
+flowchart LR
+  subgraph Events
+    C[Customer message]
+    A[Approval decided]
+    T[Timer due]
+    H[Team action]
+  end
+  C & A & T & H --> I[(Ticket event inbox<br/>one at a time per ticket)]
+  I --> D[Dispatcher<br/>builds the agent request]
+  D -->|thread = ticket, state + step card in variables,<br/>step-scoped tools| G[GTWY agent<br/>tool loop]
+  G -->|wf_* tools, HTTPS| W[Workflow tools API<br/>step engine + validation]
+  W --> S[(Ticket state<br/>step, variables, loops,<br/>pending approvals, timers)]
+  W --> X[Action proxy<br/>viaSocket tools, idempotency]
+  G -->|reply via webhook| R[Reply handler]
+  R --> M[Message to customer]
+  W --> E[(Event log / timeline)]
+  Z[Timer sweeper<br/>every 30 s] --> T
+  </pre></div>
+  <ul>
+    <li><b>Event inbox</b>: every trigger for a ticket (customer message, approval decided, timer due, team note) is a row. One worker takes the oldest event per ticket, so a ticket never has two agent calls in flight. This replaces the runner loop; it is a queue, not a state machine.</li>
+    <li><b>Dispatcher</b>: turns one event into one GTWY call. It renders the current step card and progress into <code>variables</code>, adds the tools allowed in this step as <code>extra_tools</code>, and sets <code>thread_id = ticket</code>, <code>sub_thread_id = turn</code> (each turn starts clean; we supply context ourselves).</li>
+    <li><b>Workflow tools API</b>: the only way the agent can change ticket state. It reuses today's step engine (<code>flow.ts</code>, <code>blocks.ts</code>, loop limits) as a library.</li>
+    <li><b>Action proxy</b>: business tools (viaSocket flows) are called through our server, never directly by GTWY, so approval rules, idempotency and audit stay in one place.</li>
+    <li><b>Timer sweeper</b>: one cron job that finds due timers (reminder, expiry, approval timeout) and drops a "timer due" event in the inbox.</li>
+  </ul>
+</section>
+
+<section id="blocks">
+  <h2>How each canvas block runs</h2>
+  <p>The canvas stays exactly as it is. At publish time each block is compiled into a <b>step card</b>: a small JSON the dispatcher can show the agent and the server can validate against. The rule of thumb (Decagon, Fin, Ada): <em>the LLM handles language and judgement; code handles anything with a right answer.</em></p>
+  <div class="scroll"><table>
+    <thead><tr><th>Block</th><th>Who does it</th><th>How</th></tr></thead>
+    <tbody>
+      <tr><td>Text bubble</td><td>Server</td><td>Sent word for word by the server when the step is reached; the tool result tells the agent "already sent, continue". No paraphrasing.</td></tr>
+      <tr><td>Input</td><td>Agent asks, server validates</td><td>Step card says what to collect. Agent first checks if the customer already gave it (Ada's ASK), else asks. <code>wf_save_input</code> validates the format server-side; invalid → actionable error, attempt counted.</td></tr>
+      <tr><td>Rules condition</td><td>Server</td><td>Evaluated in code the moment the step is reached; the agent only sees which branch was taken.</td></tr>
+      <tr><td>AI condition</td><td>Agent picks, server checks</td><td><code>wf_choose_case</code> with an enum of the case ids; server records the reason and moves to that branch.</td></tr>
+      <tr><td>AI step</td><td>Agent</td><td>Step card carries the instruction and only the tools mentioned in it. Agent calls <code>wf_complete_step</code> when done; server rejects completion if a required tool has not run.</td></tr>
+      <tr><td>Tool call (<code>@action</code>)</td><td>Agent chooses args, server executes</td><td>Proxy validates args against the schema, fills known ids from state, uses key <code>ticket:step:visit</code>. Save response mappings run server-side.</td></tr>
+      <tr><td>Approval</td><td>Server</td><td>Needs-approval tool or <code>@request_approval</code> creates a pending task; tool returns "waiting for the team, tell the customer"; turn ends.</td></tr>
+      <tr><td>Loop arrow</td><td>Server</td><td>Visit counts and limits enforced in the engine exactly as today; over the limit → escalation.</td></tr>
+      <tr><td>Escalate</td><td>Agent or server</td><td><code>wf_handoff(reason)</code> opens an escalation ticket with an AI summary; server also forces it on limits.</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="contract">
+  <h2>The agent contract</h2>
+  <h3>One agent, stable prompt</h3>
+  <p>A single GTWY agent "Ticket0 Workflow Agent". Its system prompt never changes per workflow; the workflow arrives as data in variables. That keeps one prompt to test and version.</p>
+<pre><code>You are Ticket0's support agent. You follow the CURRENT STEP below; you never invent steps.
+- To finish a step, call the matching wf_ tool. The server decides the next step; read it from the tool result.
+- If the customer asks something off-topic, answer briefly, then return to the current step.
+- If the customer wants something a different workflow covers, call wf_switch_workflow.
+- Never promise an outcome a tool has not confirmed. If a tool returns an error, follow its instruction.
+
+Workflow: {{workflow_name}} (v{{workflow_version}})
+Progress: {{progress}}                       ← done steps, collected values (short)
+CURRENT STEP: {{step_card}}                  ← type, instruction, what to collect, allowed tools
+Customer: {{customer}}   Known values: {{variables}}
+Conversation (latest {{n}} messages): {{transcript}}</code></pre>
+  <h3>Workflow tools (our endpoints)</h3>
+  <div class="scroll"><table>
+    <thead><tr><th>Tool</th><th>Arguments the model fills</th><th>Server does</th><th>Returns</th></tr></thead>
+    <tbody>
+      <tr><td><code>wf_start_workflow</code></td><td>workflow key (enum of enabled workflows)</td><td>Creates the ticket's run at the first step (routing by the agent)</td><td>First step card</td></tr>
+      <tr><td><code>wf_save_input</code></td><td>value</td><td>Validates format, saves variable</td><td>Next step card, or error "Order IDs look like ORD-5001, ask again"</td></tr>
+      <tr><td><code>wf_choose_case</code></td><td>case id (enum), reason</td><td>Records, follows the branch</td><td>Next step card</td></tr>
+      <tr><td><code>wf_complete_step</code></td><td>summary</td><td>Checks required tools ran, advances</td><td>Next step card, or "call @lookup_orders first"</td></tr>
+      <tr><td><code>call_&lt;tool&gt;</code></td><td>tool args (strict schema)</td><td>Proxy to viaSocket; approval / idempotency / save response</td><td>Result, or "pending team approval"</td></tr>
+      <tr><td><code>wf_wait_for_customer</code></td><td>what is needed</td><td>Marks waiting, sets reminder + expiry timers</td><td>OK (agent then writes its question)</td></tr>
+      <tr><td><code>wf_handoff</code></td><td>reason</td><td>Opens escalation, bot goes quiet</td><td>OK</td></tr>
+      <tr><td><code>wf_switch_workflow</code></td><td>workflow key, reason</td><td>Cancels current run, starts the new one</td><td>First step card of the new workflow</td></tr>
+    </tbody>
+  </table></div>
+  <ul>
+    <li><b>Ticket id is never a model argument.</b> It is injected through <code>variables_path</code>, so a confused model cannot touch another ticket.</li>
+    <li><b>State in tool results.</b> Every successful tool returns the next step card plus a one-line progress note, so the agent always works from server truth (Anthropic's "ground truth from the environment").</li>
+    <li><b>Errors teach.</b> A rejected call names the step that is still required and what to do, instead of a bare failure.</li>
+    <li><b>Few tools per turn.</b> The 8 workflow tools plus at most the current step's business tools; well under the ~20 OpenAI recommends.</li>
+  </ul>
+</section>
+
+<section id="turn">
+  <h2>One turn, end to end</h2>
+  <div class="diagram"><pre class="mermaid">
+sequenceDiagram
+  participant Cu as Customer
+  participant In as Event inbox
+  participant Di as Dispatcher
+  participant Ag as GTWY agent
+  participant WT as Workflow tools
+  Cu->>In: "it's ORD-5006"
+  In->>Di: next event for ticket T (lock T)
+  Di->>Ag: chat(thread=T, sub=turn 7, variables{step card: Input order_id}, tools)
+  Ag->>WT: wf_save_input("ORD-5006")
+  WT-->>Ag: saved; next = AI step "Use @lookup_orders…", tools [call_lookup_orders]
+  Ag->>WT: call_lookup_orders({order_id})
+  WT-->>Ag: result (status Processing); saved order_status
+  Ag->>WT: wf_complete_step("found order")
+  WT-->>Ag: next = Rules condition → branch "found" → bubble sent → Done
+  Ag-->>Di: reply "Your order ORD-5006 is processing…" (webhook)
+  Di->>Cu: message
+  Di->>In: release lock T
+  </pre></div>
+  <p>Multiple steps can complete in one turn, as long as each is confirmed by a tool. That is how the agent avoids asking for things the customer already said, without skipping anything the server requires.</p>
+</section>
+
+<section id="waits">
+  <h2>Waits, timers and approvals without a runner loop</h2>
+  <ul>
+    <li><b>Waiting for the customer</b> is just state: <code>waiting_for = customer</code>, plus timer rows for the reminder and expiry. Nothing runs while waiting. The next customer message is a new event.</li>
+    <li><b>Reminders and expiry</b> are fired by the sweeper. A reminder is a fixed message sent by the server (no LLM needed); expiry closes the run, or parks it if we build the resume window.</li>
+    <li><b>Approvals</b>: the tool records a pending task and the turn ends. When the team decides, an <code>approval_decided</code> event enters the inbox; the dispatcher calls the agent with "Team approved: …", and the server has already run the approved action before that call, so the agent only reports it.</li>
+    <li><b>Long gaps</b> (hours or days) cost nothing: state is in Postgres, not in a sleeping process. This is simpler than today's DBOS recv for very long waits.</li>
+  </ul>
+  <div class="note"><strong>The one durable piece we still need:</strong> the inbox worker and the sweeper must not lose events across restarts. A Postgres table with <code>FOR UPDATE SKIP LOCKED</code> is enough; DBOS queues or Render cron also work. This is far smaller than the current runner.</div>
+</section>
+
+<section id="reliable">
+  <h2>Reliability rules</h2>
+  <ol>
+    <li><b>One agent call per ticket at a time</b> (inbox lock). Keeps order and stays under GTWY's 20/min per thread.</li>
+    <li><b>Every side effect is idempotent</b>: key <code>ticket:step:visit</code>. GTWY can re-run tools (reviewer re-runs, retries, our own retries), so the proxy returns the stored result on repeats.</li>
+    <li><b>Webhook replies deduped by <code>message_id</code></b>; a turn with no reply after N seconds is retried once, then escalated.</li>
+    <li><b>Iteration budget 8</b>; if GTWY reports <code>maximum_iteration_limit_reached</code>, the server checks whether the step advanced and, if not, retries with a "you ran out of steps, finish the current step" note.</li>
+    <li><b>Hard limits</b>: per run max turns, max tool errors, max same-step repeats → forced handoff with summary.</li>
+    <li><b>Version pinning</b>: a ticket's run uses the workflow version it started on, as today.</li>
+    <li><b>GTWY outage</b>: events stay in the inbox; after a short retry budget the ticket is escalated with "AI unavailable".</li>
+    <li><b>Secrets</b>: workflow tools require a header secret passed in <code>extra_tools[].headers</code>; GTWY adds no auth of its own.</li>
+  </ol>
+</section>
+
+<section id="quality">
+  <h2>Quality and evals</h2>
+  <ul>
+    <li><b>Simulation suite per workflow</b>: opening message, a scripted customer persona, mocked tool responses, success criteria. Run before every publish.</li>
+    <li><b>Measure pass^k, not one lucky run</b>: run each case 5–8 times; publish only if all pass (Sierra's τ-bench lesson).</li>
+    <li><b>Automatic checks from our event log</b>: steps skipped, tools called outside their step, inputs rejected, loops hit, handoff rate, turns per ticket, cost per ticket.</li>
+    <li><b>Side-by-side period</b>: the same workflow can run on the old runner or the agent (per-workflow switch), so we compare outcomes on real traffic before switching over.</li>
+  </ul>
+</section>
+
+<section id="code">
+  <h2>What changes in our code</h2>
+  <div class="scroll"><table>
+    <thead><tr><th>Part</th><th>Today</th><th>After</th></tr></thead>
+    <tbody>
+      <tr><td>Canvas editor, versions, validation</td><td>Keep</td><td><span class="tag ok">keep</span> + compile step cards on publish</td></tr>
+      <tr><td><code>flow.ts</code>, <code>blocks.ts</code>, loop logic</td><td>Used by the runner</td><td><span class="tag ok">keep</span> as the step-engine library behind the tools</td></tr>
+      <tr><td>DBOS run loop (<code>workflow.ts</code>, decide / act / advance / flush / apply)</td><td>Core</td><td><span class="tag bad">remove</span> (kept only for workflows not yet migrated)</td></tr>
+      <tr><td>LLM calls (<code>decideStep</code>, <code>chooseCase</code>, <code>compose</code>, topic check)</td><td>Ours</td><td><span class="tag bad">remove</span>; the agent does this in one call</td></tr>
+      <tr><td>Routing (<code>route</code>)</td><td>Ours</td><td><span class="tag warn">optional</span> agent picks via <code>wf_start_workflow</code>; keep ours as fallback</td></tr>
+      <tr><td>Actions, viaSocket, approvals, escalations</td><td>Keep</td><td><span class="tag ok">keep</span>, called from the tool endpoints</td></tr>
+      <tr><td>Run panel, timeline</td><td>Reads run events</td><td><span class="tag ok">keep</span>; tools write the same event types, plus GTWY thread links</td></tr>
+      <tr><td>New</td><td>—</td><td><span class="tag acc">add</span> event inbox + worker, dispatcher, workflow tools API, timer sweeper, step-card compiler, simulation runner</td></tr>
+    </tbody>
+  </table></div>
+  <h3>Data model additions</h3>
+<pre><code>ticket_event   (id, ticket_id, kind: customer_message|approval_decided|timer|team, payload, status, created_at)
+ticket_timer   (id, ticket_id, kind: reminder|expiry|approval_timeout, due_at, fired_at)
+workflow_run   + engine: 'runner'|'agent', + agent_turns, + last_gtwy_message_id
+workflow_version + step_cards jsonb   (compiled at publish)</code></pre>
+</section>
+
+<section id="phases">
+  <h2>Rollout plan</h2>
+  <div class="phase"><div class="when">Week 1</div><div><h3>Spike: prove adherence</h3>
+    <ul><li>Mastra agent (GTWY agent as the fallback) + 4 tools (<code>wf_save_input</code>, <code>wf_complete_step</code>, <code>wf_choose_case</code>, one proxied tool) on "To know Order Status". See the Mastra roadmap for the staged version.</li>
+    <li>20 scripted conversations × 5 runs. <b>Exit:</b> ≥ 95% pass^5, zero tools called out of step, median turn latency under 6 s.</li></ul></div></div>
+  <div class="phase"><div class="when">Week 2</div><div><h3>Core engine</h3>
+    <ul><li>Step-card compiler, full tool set, dispatcher, inbox with per-ticket lock, webhook reply handler, idempotent proxy.</li>
+    <li>Per-workflow <code>engine</code> switch; timeline fed by tool events.</li></ul></div></div>
+  <div class="phase"><div class="when">Week 3</div><div><h3>Waits and people</h3>
+    <ul><li>Timer sweeper (reminder, expiry, approval timeout), approval events, handoff, workflow switch.</li>
+    <li>Limits and forced handoff; GTWY outage path.</li></ul></div></div>
+  <div class="phase"><div class="when">Week 4</div><div><h3>Quality gate and migration</h3>
+    <ul><li>Simulation runner with pass^k gate on publish; metrics dashboard (adherence, handoffs, cost per ticket).</li>
+    <li>Move workflows one by one; remove the runner once all are migrated and stable for two weeks.</li></ul></div></div>
+  <p>Estimate for one engineer: about 4 weeks to production-ready, with the go/no-go decision at the end of week 1.</p>
+</section>
+
+<section id="risks">
+  <h2>Risks</h2>
+  <div class="scroll"><table>
+    <thead><tr><th>Risk</th><th>Mitigation</th></tr></thead>
+    <tbody>
+      <tr><td>Agent skips or reorders steps</td><td>Server owns transitions; out-of-step calls rejected with an instruction; step-scoped tools</td></tr>
+      <tr><td>Agent paraphrases fixed text (legal, prices)</td><td>Bubbles sent by the server, never by the model</td></tr>
+      <tr><td>Duplicate side effects</td><td>Idempotency key per ticket/step/visit; proxy returns stored result</td></tr>
+      <tr><td>Context too short (3 turns in GTWY)</td><td>We inject transcript + progress through variables every turn</td></tr>
+      <tr><td>Latency (several tool rounds per turn)</td><td>Server completes deterministic steps inside one tool call; target ≤ 4 rounds per turn</td></tr>
+      <tr><td>Cost growth</td><td>Measure cost per ticket from GTWY usage; cap rounds; cache-friendly stable prompt</td></tr>
+      <tr><td>GTWY behaviour changes (memory, retries)</td><td>Pin agent version; simulation suite runs on every agent or prompt change</td></tr>
+      <tr><td>Hard to debug</td><td>Our event log + GTWY thread per ticket, sub-thread per turn, linked from the timeline</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="decide">
+  <h2>Decisions needed</h2>
+  <ol>
+    <li><b>Go with option B</b> (agent drives, server guards) rather than a prompt-only agent?</li>
+    <li><b>Model provider for Mastra</b>: GTWY through an OpenAI-compatible endpoint, or a direct provider (Stage 0 of the Mastra roadmap)? Mastra is the chosen runtime; GTWY agent is the fallback.</li>
+    <li><b>Routing</b>: let the agent pick the workflow (<code>wf_start_workflow</code>), or keep our router and start the agent already inside a workflow?</li>
+    <li><b>Sync or webhook</b> replies from GTWY? Webhook is more robust for long tool rounds; sync is simpler for the spike.</li>
+    <li><b>Ask the GTWY team</b> for: tool results in thread history, a per-call way to pass full history officially, and a human-approval interrupt. Each would remove a piece of our code later.</li>
+    <li><b>Spike owner and the week-1 exit bar</b> (pass^5 target, latency, cost).</li>
+  </ol>
+</section>
+
+<section id="sources">
+  <h2>Sources</h2>
+  <ul class="sources">
+    <li>Decagon AOPs: <a href="https://decagon.ai/modules/agent-architecture">agent architecture</a>, <a href="https://decagon.ai/resources/from-sops-to-agent-operating-procedures">from SOPs to AOPs</a>, <a href="https://decagon.ai/blog/why-we-built-aop">why we built AOP</a></li>
+    <li>Intercom Fin Procedures: <a href="https://fin.ai/help/en/articles/12628343-fin-procedures-explained">procedures explained</a>, <a href="https://fin.ai/help/en/articles/13703300-building-fin-procedures">building procedures</a></li>
+    <li>Sierra: <a href="https://sierra.ai/blog/meet-the-ai-agent-engineer">agent SDK</a>, <a href="https://sierra.ai/blog/benchmarking-ai-agents">τ-bench</a>, <a href="https://sierra.ai/blog/simulations-the-secret-behind-every-great-agent">simulations</a></li>
+    <li>Ada <a href="https://docs.ada.cx/docs/automation/playbooks/best-practices">Playbooks best practices</a>; Chatbase <a href="https://www.chatbase.co/docs/user-guides/chatbot/actions/custom-action.md">custom actions</a></li>
+    <li>Rasa CALM <a href="https://rasa.com/docs/pro/customize/command-generator.md">command generator</a>; Parlant <a href="https://parlant.io/docs/concepts/customization/journeys">journeys</a></li>
+    <li>Anthropic <a href="https://www.anthropic.com/engineering/building-effective-agents">building effective agents</a>, <a href="https://www.anthropic.com/engineering/writing-tools-for-agents">writing tools for agents</a></li>
+    <li>OpenAI <a href="https://openai.github.io/openai-agents-python/human_in_the_loop/">Agents SDK human-in-the-loop</a>, <a href="https://developers.openai.com/api/docs/guides/function-calling">function calling</a></li>
+    <li>LangGraph <a href="https://docs.langchain.com/oss/python/langgraph/interrupts">interrupts</a>; DBOS <a href="https://docs.dbos.dev/ai/hitl">human-in-the-loop</a>; Temporal <a href="https://docs.temporal.io/ai-cookbook/human-in-the-loop-python.md">human-in-the-loop</a></li>
+    <li>MAST failure taxonomy: <a href="https://arxiv.org/html/2503.13657v3">arXiv 2503.13657</a></li>
+    <li>Mastra: <a href="https://mastra.ai/docs/workflows/overview">workflows</a>, <a href="https://mastra.ai/docs/workflows/control-flow">control flow</a>, <a href="https://mastra.ai/docs/workflows/suspend-and-resume">suspend and resume</a>, <a href="https://mastra.ai/docs/deployment/workflow-runners">workflow runners</a>, <a href="https://mastra.ai/docs/agents/durable-agents">durable agents</a>, <a href="https://mastra.ai/blog/hitl-where-to-put-approval-in-agents-and-workflows">tool approval</a></li>
+    <li>Agno: <a href="https://docs.agno.com/agent-os/introduction">AgentOS</a>, <a href="https://docs.agno.com/agent-os/scheduler/overview">scheduler</a>, <a href="https://docs.agno.com/agent-os/approvals/overview">approvals</a>, <a href="https://docs.agno.com/agent-os/background-execution/overview">background execution</a>, <a href="https://docs.agno.com/hitl/overview">human-in-the-loop</a>, <a href="https://docs.agno.com/workflows/overview">workflows</a></li>
+    <li>GTWY internals: read from the local <code>gtwy-ai</code> source (tool loop, threads, variables, webhook, plan mode, reviewer, rate limits)</li>
+  </ul>
+</section>
+</main>
+</div>
