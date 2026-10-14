@@ -28,7 +28,9 @@ export default function PlaygroundPage() {
   const [convs, setConvs] = useState<Conv[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [state, setState] = useState<State | null>(null);
-  const [persona, setPersona] = useState(0);
+  const [persona, setPersona] = useState(0); // -1 = custom
+  const [custom, setCustom] = useState({ name: '', email: '' });
+  const customOk = /^\S+@\S+\.\S+$/.test(custom.email.trim());
 
   const loadList = useCallback(() => api<Conv[]>('/conversations').then(setConvs), []);
   const loadState = useCallback(async () => { if (activeId) setState(await api<State>(`/conversations/${activeId}`)); }, [activeId]);
@@ -42,7 +44,8 @@ export default function PlaygroundPage() {
   }, [loadState, loadList]);
 
   const start = async () => {
-    const p = PERSONAS[persona];
+    // A custom chat without a name uses the part of the email before @.
+    const p = persona >= 0 ? PERSONAS[persona] : { name: custom.name.trim() || custom.email.trim().split('@')[0], email: custom.email.trim() };
     const c = await api<Conv>('/conversations', { method: 'POST', body: { customer_name: p.name, customer_email: p.email } });
     await loadList();
     setActiveId(c.id);
@@ -57,8 +60,17 @@ export default function PlaygroundPage() {
           <div className="mb-2 text-xs font-medium uppercase tracking-wide text-ink-3">Chat as customer</div>
           <select value={persona} onChange={(e) => setPersona(Number(e.target.value))} className="mb-2 w-full rounded-md border border-line px-2 py-1.5">
             {PERSONAS.map((p, i) => <option key={p.email} value={i}>{p.name} · {p.email}</option>)}
+            <option value={-1}>Custom email…</option>
           </select>
-          <Button variant="primary" className="w-full" onClick={start}><Plus size={15} /> New conversation</Button>
+          {persona < 0 && (
+            <div className="mb-2 space-y-2">
+              <input value={custom.email} onChange={(e) => setCustom({ ...custom, email: e.target.value })} placeholder="customer@email.com" type="email"
+                className="w-full rounded-md border border-line px-2 py-1.5" />
+              <input value={custom.name} onChange={(e) => setCustom({ ...custom, name: e.target.value })} placeholder="Name (optional)"
+                className="w-full rounded-md border border-line px-2 py-1.5" />
+            </div>
+          )}
+          <Button variant="primary" className="w-full" onClick={start} disabled={persona < 0 && !customOk}><Plus size={15} /> New conversation</Button>
         </div>
         {waiting > 0 && (
           <div className="flex items-center gap-2 border-b border-line bg-bad-soft px-3 py-2 text-xs font-medium text-bad">
