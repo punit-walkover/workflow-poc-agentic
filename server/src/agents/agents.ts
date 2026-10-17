@@ -247,9 +247,11 @@ export async function controlTurn(conversationId: string, p: { runId: string; op
 }
 
 // The team decided an approval: the engine applies it, then the workflow agent tells the customer.
+// A rejection escalates the run, so the customer gets one fixed line and the bot stays quiet after it.
 export async function approvalTurn(conversationId: string, p: { runId: string; taskId: string; approved: boolean; by: string; note?: string }) {
   const r = await decideAgentApproval(p.runId, p.taskId, p.approved, p.by, p.note);
   if (!r.ok) return void (await send(conversationId, p.runId, 'Sorry, I hit a problem on my side. A teammate will take a look and follow up.'));
+  if (!p.approved) return void (await send(conversationId, p.runId, "The team couldn't approve this request, so a teammate will follow up with you directly."));
   const rc = new RequestContext();
   const turn: Turn = { conversationId, messageId: null, runId: p.runId, delegated: true };
   rc.set('turn', turn);
