@@ -1,14 +1,9 @@
 import { BadRequestException, Body, Controller, Get, NotFoundException, Param, Post, Res } from '@nestjs/common';
-import { createHash } from 'crypto';
-import { mkdirSync, writeFileSync, createReadStream } from 'fs';
-import { join } from 'path';
+import { createReadStream } from 'fs';
 import type { Response } from 'express';
 import { one, q } from '../db';
 import { priceOf } from '../agents/usage';
-import { postCustomerMessage } from './conversations';
-
-const UPLOADS = process.env.UPLOADS_DIR || join(process.cwd(), 'uploads');
-mkdirSync(UPLOADS, { recursive: true });
+import { NewFile, openTicket, postCustomerMessage, saveAttachment } from './conversations';
 
 @Controller()
 export class PlaygroundController {
@@ -20,10 +15,12 @@ export class PlaygroundController {
               from conversation c order by c.created_at desc`);
   }
 
+  // A new ticket starts with the customer's first message: both are created in this one call.
   @Post('conversations')
-  create(@Body() b: { customer_name?: string; customer_email?: string }) {
-    return one(`insert into conversation (customer_name, customer_email) values ($1, $2) returning *`,
-      [b.customer_name?.trim() || 'Alex Kim', b.customer_email?.trim() || 'alex@example.com']);
+  async create(@Body() b: { customer_name?: string; customer_email?: string; text?: string; files?: NewFile[] }) {
+    const { conversation } = await openTicket(
+      { name: b.customer_name?.trim() || 'Alex Kim', email: b.customer_email?.trim() || 'alex@example.com', channel: 'playground' }, b);
+    return conversation;
   }
 
   // One AI call's full exchange: per round, the request sent to the model and its response.
@@ -80,16 +77,8 @@ export class PlaygroundController {
   }
 
   @Post('attachments')
-  async upload(@Body() b: { conversation_id: string; file_name: string; mime_type: string; data_base64: string }) {
-    const data = Buffer.from(b.data_base64 ?? '', 'base64');
-    if (!data.length || data.length > 5_000_000) throw new BadRequestException('file must be 1 byte to 5 MB');
-    const row = await one(`insert into attachment (conversation_id, file_name, mime_type, size_bytes, sha256, path)
-                           values ($1, $2, $3, $4, $5, '') returning id`,
-      [b.conversation_id, b.file_name, b.mime_type, data.length, createHash('sha256').update(data).digest('hex')]);
-    const path = join(UPLOADS, row.id);
-    writeFileSync(path, data);
-    await q('update attachment set path = $2 where id = $1', [row.id, path]);
-    return { id: row.id, file_name: b.file_name, mime_type: b.mime_type };
+  upload(@Body() b: { conversation_id: string } & NewFile) {
+    return saveAttachment(b.conversation_id, b);
   }
 
   @Get('attachments/:id')

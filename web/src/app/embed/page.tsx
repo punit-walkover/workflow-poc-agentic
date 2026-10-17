@@ -46,17 +46,20 @@ function Widget() {
     if (busy || (!text.trim() && !files.length)) return;
     setBusy(true); setError('');
     try {
+      const toBase64 = (f: File) => new Promise<string>((res) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1]); r.readAsDataURL(f); });
       let id = convId;
       if (!id) {
-        id = (await api('/widget/conversations', { method: 'POST', body: who })).id as string;
+        // The first message opens the ticket: one call creates the conversation, its files and the message.
+        const payload = await Promise.all(files.map(async (f) => ({ file_name: f.name, mime_type: f.type || 'application/octet-stream', data_base64: await toBase64(f) })));
+        id = (await api('/widget/conversations', { method: 'POST', body: { ...who, text, files: payload } })).id as string;
         store.set(id); setConvId(id);
+      } else {
+        const ids: string[] = [];
+        for (const f of files) {
+          ids.push((await api('/attachments', { method: 'POST', body: { conversation_id: id, file_name: f.name, mime_type: f.type || 'application/octet-stream', data_base64: await toBase64(f) } })).id);
+        }
+        await api(`/widget/conversations/${id}/messages`, { method: 'POST', body: { text, attachment_ids: ids } });
       }
-      const ids: string[] = [];
-      for (const f of files) {
-        const data_base64 = await new Promise<string>((res) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1]); r.readAsDataURL(f); });
-        ids.push((await api('/attachments', { method: 'POST', body: { conversation_id: id, file_name: f.name, mime_type: f.type || 'application/octet-stream', data_base64 } })).id);
-      }
-      await api(`/widget/conversations/${id}/messages`, { method: 'POST', body: { text, attachment_ids: ids } });
       setText(''); setFiles([]);
       const fresh = await api<Conv>(`/widget/conversations/${id}`);
       setData(fresh);

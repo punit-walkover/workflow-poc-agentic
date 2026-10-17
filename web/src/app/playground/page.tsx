@@ -7,7 +7,14 @@ import { AttentionDot, Button, StatusChip } from '@/components/ui';
 import { AiUsage, EventRow, RunPanel, RunView, Task } from '@/components/run-panel';
 import type { ActionRun } from '@/components/tool-call';
 
-interface Conv { id: string; customer_name: string; customer_email: string; channel: string; run_status: string | null; last_text: string | null; pending_approvals: number }
+interface Conv { id: string; customer_name: string; customer_email: string; channel: string; summary: string | null; run_status: string | null; last_text: string | null; pending_approvals: number }
+interface Who { name: string; email: string }
+
+const toBase64 = (f: File) => new Promise<string>((res) => {
+  const r = new FileReader();
+  r.onload = () => res(String(r.result).split(',')[1]);
+  r.readAsDataURL(f);
+});
 interface Msg { id: string; role: 'customer' | 'bot' | 'team' | 'system'; text: string; attachments: { id: string; file_name: string; mime_type: string }[]; created_at: string }
 interface State { conversation: Conv; messages: Msg[]; runs: RunView[]; events: EventRow[]; approvals: Task[]; action_runs: ActionRun[]; ai_usage?: AiUsage }
 
@@ -28,6 +35,7 @@ export default function PlaygroundPage() {
   const [convs, setConvs] = useState<Conv[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [state, setState] = useState<State | null>(null);
+  const [draft, setDraft] = useState<Who | null>(null); // a new ticket not sent yet
   const [persona, setPersona] = useState(0); // -1 = custom
   const [custom, setCustom] = useState({ name: '', email: '' });
   const customOk = /^\S+@\S+\.\S+$/.test(custom.email.trim());
@@ -43,12 +51,17 @@ export default function PlaygroundPage() {
     return () => clearInterval(t);
   }, [loadState, loadList]);
 
-  const start = async () => {
+  // Opens an empty chat; the ticket is created when the customer sends the first message.
+  const start = () => {
     // A custom chat without a name uses the part of the email before @.
     const p = persona >= 0 ? PERSONAS[persona] : { name: custom.name.trim() || custom.email.trim().split('@')[0], email: custom.email.trim() };
-    const c = await api<Conv>('/conversations', { method: 'POST', body: { customer_name: p.name, customer_email: p.email } });
+    setActiveId(null);
+    setDraft(p);
+  };
+  const created = async (id: string) => {
     await loadList();
-    setActiveId(c.id);
+    setDraft(null);
+    setActiveId(id);
   };
   const refresh = () => { loadState(); loadList(); };
   const waiting = convs.filter((c) => c.pending_approvals > 0).length;
@@ -79,7 +92,7 @@ export default function PlaygroundPage() {
         )}
         <div className="flex-1 overflow-auto">
           {convs.map((c) => (
-            <button key={c.id} onClick={() => setActiveId(c.id)}
+            <button key={c.id} onClick={() => { setDraft(null); setActiveId(c.id); }} title={c.summary ?? undefined}
                     className={`block w-full border-b border-line px-3 py-2.5 text-left ${c.id === activeId ? 'bg-hover' : 'hover:bg-hover/60'}`}>
               <div className="flex items-center justify-between gap-2">
                 <span className="flex min-w-0 items-center gap-2">
@@ -97,7 +110,9 @@ export default function PlaygroundPage() {
         </div>
       </aside>
 
-      {activeId && state ? (
+      {draft ? (
+        <NewTicket who={draft} onCreated={created} />
+      ) : activeId && state ? (
         <>
           <Chat state={state} onChanged={refresh} />
           <aside className="w-[400px] shrink-0 overflow-auto border-l border-line bg-panel">
@@ -140,12 +155,7 @@ function Chat({ state, onChanged }: { state: State; onChanged: () => void }) {
       } else {
         const ids: string[] = [];
         for (const f of files) {
-          const data_base64 = await new Promise<string>((res) => {
-            const r = new FileReader();
-            r.onload = () => res(String(r.result).split(',')[1]);
-            r.readAsDataURL(f);
-          });
-          ids.push((await api('/attachments', { method: 'POST', body: { conversation_id: convId, file_name: f.name, mime_type: f.type || 'application/octet-stream', data_base64 } })).id);
+          ids.push((await api('/attachments', { method: 'POST', body: { conversation_id: convId, file_name: f.name, mime_type: f.type || 'application/octet-stream', data_base64: await toBase64(f) } })).id);
         }
         await api(`/conversations/${convId}/messages`, { method: 'POST', body: { text, attachment_ids: ids } });
       }
@@ -161,6 +171,9 @@ function Chat({ state, onChanged }: { state: State; onChanged: () => void }) {
           <div className="font-medium">{state.conversation.customer_name}
             {state.conversation.channel === 'widget' && <span className="ml-2 rounded bg-var-soft px-1.5 text-xs font-medium text-var">from embedded widget</span>}</div>
           <div className="text-xs text-ink-3">{state.conversation.customer_email} · write as the customer or the team; the right panel is the teammate view</div>
+          <div className="mt-0.5 truncate text-xs text-ink-2" title={state.conversation.summary ?? undefined}>
+            <span className="font-medium">Summary:</span> {state.conversation.summary || <span className="text-ink-3">set when the first workflow starts</span>}
+          </div>
         </div>
         {pending > 0 && <a href="/approvals" className="flex items-center gap-2 rounded-full bg-bad-soft px-3 py-1 text-xs font-medium text-bad hover:underline"><AttentionDot /> Needs approval · open Approvals</a>}
       </header>
@@ -205,6 +218,54 @@ function Chat({ state, onChanged }: { state: State; onChanged: () => void }) {
           {as === 'customer' && <button title="Attach image" onClick={() => fileInput.current?.click()} className="rounded-md p-2 text-ink-2 hover:bg-hover"><ImagePlus size={18} /></button>}
           <input ref={fileInput} type="file" accept="image/*" multiple hidden onChange={(e) => { setFiles([...files, ...Array.from(e.target.files ?? [])]); e.target.value = ''; }} />
           <textarea value={text} onChange={(e) => setText(e.target.value)} rows={1} placeholder={as === 'team' ? 'Reply as the team…' : 'Write as the customer…'}
+                    onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
+                    className="max-h-40 min-h-[38px] flex-1 resize-none rounded-lg border border-line px-3 py-2 outline-none focus:border-ink-3" />
+          <Button variant="primary" onClick={send} disabled={busy}><Send size={15} /></Button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// A new ticket before its first message: nothing exists on the server until Send.
+function NewTicket({ who, onCreated }: { who: Who; onCreated: (id: string) => void }) {
+  const [text, setText] = useState('');
+  const [files, setFiles] = useState<File[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const fileInput = useRef<HTMLInputElement>(null);
+
+  const send = async () => {
+    if (busy || (!text.trim() && !files.length)) return;
+    setBusy(true); setError('');
+    try {
+      const payload = await Promise.all(files.map(async (f) => ({ file_name: f.name, mime_type: f.type || 'application/octet-stream', data_base64: await toBase64(f) })));
+      const c = await api<Conv>('/conversations', { method: 'POST', body: { customer_name: who.name, customer_email: who.email, text, files: payload } });
+      onCreated(c.id);
+    } catch (e: any) { setError(e.message); } finally { setBusy(false); }
+  };
+
+  return (
+    <section className="flex min-w-0 flex-1 flex-col">
+      <header className="border-b border-line bg-panel px-5 py-3">
+        <div className="font-medium">{who.name} <span className="ml-2 rounded bg-hover px-1.5 text-xs font-medium text-ink-2">new ticket</span></div>
+        <div className="text-xs text-ink-3">{who.email} · the ticket is created when the customer sends the first message</div>
+      </header>
+      <div className="flex-1 px-6 py-5 text-ink-3">Write the customer&apos;s first message below.</div>
+      <div className="border-t border-line bg-panel p-3">
+        {error && <div className="mb-2 text-xs text-bad">{error}</div>}
+        {files.length > 0 && (
+          <div className="mb-2 flex gap-2">
+            {files.map((f, i) => (
+              <span key={i} className="flex items-center gap-1 rounded-md bg-hover px-2 py-1 text-xs">{f.name}
+                <button onClick={() => setFiles(files.filter((_, j) => j !== i))}><X size={12} /></button></span>
+            ))}
+          </div>
+        )}
+        <div className="flex items-end gap-2">
+          <button title="Attach image" onClick={() => fileInput.current?.click()} className="rounded-md p-2 text-ink-2 hover:bg-hover"><ImagePlus size={18} /></button>
+          <input ref={fileInput} type="file" accept="image/*" multiple hidden onChange={(e) => { setFiles([...files, ...Array.from(e.target.files ?? [])]); e.target.value = ''; }} />
+          <textarea autoFocus value={text} onChange={(e) => setText(e.target.value)} rows={1} placeholder="Write as the customer…"
                     onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
                     className="max-h-40 min-h-[38px] flex-1 resize-none rounded-lg border border-line px-3 py-2 outline-none focus:border-ink-3" />
           <Button variant="primary" onClick={send} disabled={busy}><Send size={15} /></Button>
