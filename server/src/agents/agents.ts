@@ -138,12 +138,15 @@ const DELEGATE = ['answer', 'not_an_answer', 'off_topic'] as const;
 const supervisorTools = {
   start_workflow: createTool({
     id: 'start_workflow', description: 'Start a published workflow (no workflow may be active). Confidence 0.7 or more.',
-    inputSchema: z.object({ workflow_id: z.string(), confidence: z.number(), reason: z.string() }),
+    inputSchema: z.object({ workflow_id: z.string(), confidence: z.number(),
+      reason: z.string().describe('One sentence on what the customer wants. The first one becomes the ticket summary.') }),
     execute: async (a, ctx) => {
       const turn = turnOf(ctx);
       const r = await wfStart(turn.conversationId, a);
       if (r.ok) {
         turn.runId = r.run_id;
+        // The ticket summary is set once, from the first workflow start, and never rewritten.
+        await q('update conversation set summary = $2 where id = $1 and summary is null', [turn.conversationId, a.reason.trim()]);
         await sysNote(turn.conversationId, `Supervisor: started a workflow (confidence ${a.confidence.toFixed(2)}). ${a.reason}`);
         if (turn.messageId) await addEvent(r.run_id, null, 'customer', 'customer_message', { messageId: turn.messageId });
       }

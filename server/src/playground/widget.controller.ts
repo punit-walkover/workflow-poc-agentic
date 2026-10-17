@@ -1,15 +1,17 @@
 import { BadRequestException, Body, Controller, Get, NotFoundException, Param, Post } from '@nestjs/common';
 import { one, q } from '../db';
-import { postCustomerMessage } from './conversations';
+import { NewFile, openTicket, postCustomerMessage } from './conversations';
 
 // Public API for the embeddable chat widget: only what a customer may see (no runs, events or approvals).
 @Controller('widget')
 export class WidgetController {
+  // The customer's first message opens the ticket: conversation, files and message are created together.
   @Post('conversations')
-  start(@Body() b: { name?: string; email?: string }) {
+  async start(@Body() b: { name?: string; email?: string; text?: string; files?: NewFile[] }) {
     if (!b.email?.includes('@')) throw new BadRequestException('a valid email is required');
-    return one(`insert into conversation (customer_name, customer_email, channel) values ($1, $2, 'widget') returning id, customer_name`,
-      [b.name?.trim() || b.email.split('@')[0], b.email.trim().toLowerCase()]);
+    const { conversation, message } = await openTicket(
+      { name: b.name?.trim() || b.email.split('@')[0], email: b.email.trim().toLowerCase(), channel: 'widget' }, b);
+    return { id: conversation.id, customer_name: conversation.customer_name, message_id: message.id };
   }
 
   @Get('conversations/:id')
