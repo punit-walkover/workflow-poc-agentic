@@ -266,6 +266,7 @@ export async function startAgentRun(conversationId: string, workflowId: string, 
 }
 
 // The team decided an approval on an agent run: run the approved action, then move on.
+// Any rejection (action or evidence review) escalates the run to a person; the workflow never continues past it.
 export const decideAgentApproval = (runId: string, taskId: string, approved: boolean, by: string, note?: string) => serial(runId, async (): Promise<ToolResult> => {
   const c = await load(runId);
   const w = c.run.waiting_for;
@@ -273,8 +274,9 @@ export const decideAgentApproval = (runId: string, taskId: string, approved: boo
   const task = await one('select * from approval_task where id = $1', [taskId]);
   const node = c.flow.node(w.node_id) as StepNode;
   await addEvent(runId, node.id, `user:${by}`, 'approval_decided', { task_id: taskId, approved });
-  if (task.kind === 'action' && approved) return runApproved(c, node, task);
   c.run.facts.outputs[node.id] = { approved, reviewed_by: by, reviewer_note: note ?? '' };
+  if (!approved) return end(c, 'escalated', `approval rejected by ${by}${note ? `: ${note}` : ''}`);
+  if (task.kind === 'action') return runApproved(c, node, task);
   await keep(c, node, c.run.facts.outputs[node.id]); // a review's decision can be saved to variables too
   c.run.status = 'running';
   return advance(c, node.id, c.flow.next(node.id), { approved });
