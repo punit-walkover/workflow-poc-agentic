@@ -13,7 +13,9 @@ export const needsApproval = async () => new Set((await q<{ key: string }>('sele
 const enabledActionKeys = async () => (await q<{ key: string }>('select key from action where enabled')).map((r) => r.key);
 
 export async function listWorkflows() {
-  return q(`select id, name, when_to_use, enabled, step_count, has_unpublished_changes, updated_at, published_at
+  // list_builder: written in Builder 2 (the graph carries its step list); otherwise drawn on the canvas.
+  return q(`select id, name, when_to_use, enabled, step_count, has_unpublished_changes, updated_at, published_at,
+                   (graph ? 'builder2') as list_builder
             from workflow where archived_at is null order by created_at`);
 }
 
