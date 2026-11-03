@@ -11,7 +11,7 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { Inline } from '@/lib/inline';
 
-interface MenuItem { id: string; label: string; hint?: string; kind: 'action' | 'var' | 'condition' }
+interface MenuItem { id: string; label: string; hint?: string; kind: 'action' | 'var' | 'condition' | 'goto' }
 type Menu = { items: MenuItem[]; index: number; rect: DOMRect | null; command: (i: MenuItem) => void } | null;
 
 interface Props {
@@ -24,6 +24,7 @@ interface Props {
   onEnter?: () => void;
   onBackspaceEmpty?: () => void;
   onCondition?: () => void;
+  onGoto?: () => void; // Builder 2: turn this step into "Go to step"
 }
 
 // Inline[] ⇄ TipTap JSON. The server never sees TipTap's format.
@@ -68,10 +69,12 @@ export function StepEditor(props: Props) {
       const items: MenuItem[] = live.current.actions.filter((a) => a.enabled && (a.key.includes(qy) || a.name.toLowerCase().includes(qy)))
         .map((a) => ({ id: a.key, label: a.key, hint: a.name, kind: 'action' }));
       if (live.current.onCondition && 'condition'.includes(qy)) items.push({ id: '__condition', label: 'Condition', hint: 'Turn this step into If / Else', kind: 'condition' });
+      if (live.current.onGoto && 'go to step'.includes(qy)) items.push({ id: '__goto', label: 'Go to step', hint: 'Repeat an earlier step', kind: 'goto' });
       return items;
     },
     command: ({ editor, range, props: item }: any) => {
       if (item.kind === 'condition') { editor.chain().focus().deleteRange(range).run(); live.current.onCondition?.(); return; }
+      if (item.kind === 'goto') { editor.chain().focus().deleteRange(range).run(); live.current.onGoto?.(); return; }
       editor.chain().focus().insertContentAt(range, [
         { type: 'mention', attrs: { id: item.id, label: item.id, mentionSuggestionChar: char } },
         { type: 'text', text: ' ' },
@@ -137,8 +140,8 @@ export function StepEditor(props: Props) {
           {menu.items.map((it, i) => (
             <button key={it.id} type="button" onMouseDown={(e) => { e.preventDefault(); menu.command(it); }}
                     className={`flex w-full items-baseline gap-2 px-3 py-1.5 text-left text-sm ${i === menu.index ? 'bg-hover' : ''}`}>
-              <span className={it.kind === 'condition' ? 'font-medium text-brand' : it.kind === 'var' ? 'text-var' : 'text-action'}>
-                {it.kind === 'condition' ? '◇ Condition' : it.kind === 'var' ? `{{${it.label}}}` : `@${it.label}`}
+              <span className={it.kind === 'condition' || it.kind === 'goto' ? 'font-medium text-brand' : it.kind === 'var' ? 'text-var' : 'text-action'}>
+                {it.kind === 'condition' ? '◇ Condition' : it.kind === 'goto' ? '↺ Go to step' : it.kind === 'var' ? `{{${it.label}}}` : `@${it.label}`}
               </span>
               <span className="truncate text-xs text-ink-3">{it.hint}</span>
             </button>

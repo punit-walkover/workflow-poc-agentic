@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { Bot, GitBranch, MessagesSquare, ShieldCheck, Wrench } from 'lucide-react';
+import { Bot, GitBranch, ListOrdered, MessagesSquare, ShieldCheck, Wrench } from 'lucide-react';
 import { api } from '@/lib/api';
 import { AttentionDot } from './ui';
 
@@ -13,6 +13,7 @@ const ITEMS = [
   { href: '/approvals', label: 'Approvals', icon: ShieldCheck },
   { href: '/actions', label: 'Actions', icon: Wrench },
   { href: '/chatbot', label: 'Chatbot embed', icon: Bot },
+  { href: '/builder2', label: 'Builder 2', icon: ListOrdered },
 ];
 
 export function Nav() {
