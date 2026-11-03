@@ -5,21 +5,24 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { api } from '@/lib/api';
+import { compileList, emptyFlow } from '@/lib/list-flow';
 import { Button, Card, Toggle } from '@/components/ui';
 
-interface Row { id: string; name: string; when_to_use: string; enabled: boolean; step_count: number; published_at: string | null; has_unpublished_changes: boolean }
+interface Row { id: string; name: string; when_to_use: string; enabled: boolean; step_count: number; published_at: string | null; has_unpublished_changes: boolean; list_builder: boolean }
 
-// Builder 2: the same workflows, written as a numbered list of steps instead of drawn on the canvas.
+// Builder 2: workflows written as a numbered list of steps. Ones drawn on the canvas stay on the Workflows tab.
 export default function Builder2Page() {
   const router = useRouter();
   const [rows, setRows] = useState<Row[]>([]);
   const [error, setError] = useState('');
 
-  const load = () => api<Row[]>('/workflows').then(setRows).catch((e) => setError(e.message));
+  const load = () => api<Row[]>('/workflows').then((r) => setRows(r.filter((w) => w.list_builder))).catch((e) => setError(e.message));
   useEffect(() => { load(); }, []);
 
+  // Saved right away with an empty list, so it is a Builder 2 workflow from the start (and shows in this list).
   const create = async () => {
     const w = await api('/workflows', { method: 'POST', body: {} });
+    await api(`/workflows/${w.id}`, { method: 'PUT', body: { name: w.name, when_to_use: '', graph: compileList(emptyFlow()), row_version: w.row_version } });
     router.push(`/builder2/${w.id}`);
   };
   const remove = async (r: Row) => {
@@ -35,7 +38,7 @@ export default function Builder2Page() {
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold">Builder 2</h1>
-          <p className="text-ink-2">Write a workflow as a numbered list of steps. Same workflows as the canvas, a different way to build them.</p>
+          <p className="text-ink-2">Write a workflow as a numbered list of steps. Runs the same way as one drawn on the canvas.</p>
         </div>
         <Button variant="primary" onClick={create}><Plus size={15} /> New workflow</Button>
       </div>
@@ -55,7 +58,7 @@ export default function Builder2Page() {
             <button title="Delete workflow" onClick={() => remove(r)} className="rounded p-1.5 text-ink-3 hover:bg-hover hover:text-bad"><Trash2 size={16} /></button>
           </Card>
         ))}
-        {!rows.length && !error && <div className="text-ink-3">No workflows yet.</div>}
+        {!rows.length && !error && <div className="text-ink-3">No Builder 2 workflows yet. Workflows drawn on the canvas stay on the Workflows tab.</div>}
       </div>
     </div>
   );
