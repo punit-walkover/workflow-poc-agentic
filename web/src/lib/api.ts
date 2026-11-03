@@ -1,4 +1,5 @@
-export const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4011';
+// Embarko builds without env vars, so a production build defaults to the same-origin /api proxy (see next.config.ts).
+export const API = process.env.NEXT_PUBLIC_API_URL || (process.env.NODE_ENV === 'production' ? '/api' : 'http://localhost:4011');
 
 export class ApiError extends Error {
   constructor(public status: number, message: string, public issues?: string[]) { super(message); }

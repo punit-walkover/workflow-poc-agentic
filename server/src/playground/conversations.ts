@@ -6,7 +6,8 @@ import type { PoolClient } from 'pg';
 import { one, pool, q, tx } from '../db';
 import { enqueue } from '../agents/inbox';
 
-export const UPLOADS = process.env.UPLOADS_DIR || join(process.cwd(), 'uploads');
+// Embarko sets DATA_DIR for files that must survive a redeploy; locally they stay next to the code.
+export const UPLOADS = process.env.UPLOADS_DIR || (process.env.DATA_DIR ? join(process.env.DATA_DIR, 'uploads') : join(process.cwd(), 'uploads'));
 mkdirSync(UPLOADS, { recursive: true });
 
 export interface NewFile { file_name: string; mime_type?: string; data_base64: string }
